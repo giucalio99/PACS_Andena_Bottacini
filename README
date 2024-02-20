@@ -1,0 +1,62 @@
+
+Istruzioni per utilizzare il codice condiviso:
+
+1) Scaricare la cartella dei codici e delle mesh in una directory apposita
+
+2) Assicurarsi che il "target" riportato nel file CMakeLists.txt corrisponda al
+  nome del codice di interesse e che la directory per i file deal.ii 
+  sia corretta
+
+3) Aprire un terminale, digitando sulla linea di comando "cmake .", seguito da "make"
+
+4) Il programma è ora compilato. Per farlo girare, digitare sulla 
+   linea di comando "make run"
+   
+5) Assicurarsi che la directory nel codice per leggere la mesh (generalmente "./Meshes/BOXED_EMITTER.msh")
+   corrisponda alla directory effettiva della mesh di interesse
+   
+   
+   
+Nella cartella dei codici:
+- "StationaryNavierStokes.cc" è il tutorial step-57 di deal.ii adattato per funzionare sulla 
+  geometria di interesse (risolve il problema fluidodinamico)
+  
+- "Validation_pn.cc" risolve il problema elettrico per un caso test sui semiconduttori
+
+- "problem.cc" è il codice completo utilizzato per le simulazioni con problema elettrico e
+  fluidodinamico accoppiati, per varie condizioni al contorno al collettore e ambientali
+  
+- "problem_naca.cc" è il codice completo come sopra, ma utilizzando una mesh completa con
+  profilo NACA 00XX
+  
+  
+  
+Nella cartella delle mesh:
+- "BOXED_ELLIPSE.geo" genera una mesh con collettore ellittico e emettitore
+  circolare sfruttando la simmetria del problema. Le dimensioni della mesh
+  e del raffinamento possono essere adattate
+  
+- "BOXED_ELLIPSE.msh" è la mesh utilizzata per le simulazioni complete
+
+- "small_square.msh" è la mesh rettangolare utilizzata in "Validation_pn.cc"
+
+- "BOXED_EMITTER.geo" è simile a "BOXED_ELLIPSE.geo" ma genera emettitori
+  rettangolari a estremità semicircolari di lunghezza parametrica L = NxR
+  dove N è un intero maggiore o uguale a 2 e R il raggio dell'estremità 
+  semicircolare (quindi per N = 2 l'emettitore è circolare)
+  
+- "REAL_EMITTER.geo" e "REAL_EMITTER.msh" sono invece i file utilizzati
+  per generare la mesh con il profilo NACA (senza sfruttare la simmetria
+  assiale per poter considerare anche la turbolenza in futuro, ma non
+  dovrebbe essere difficile modificarle per dimezzare il dominio)
+  
+  
+   
+Tutte le grandezze sono espresse in unità del SI.
+
+
+I commenti sono troppo pochi per la comprensione del codice: per qualunque chiarimento
+rimango disponibile via mail (matteo.menessini@mail.polimi.it)
+
+
+
