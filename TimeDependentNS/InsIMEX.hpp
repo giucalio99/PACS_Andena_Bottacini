@@ -56,6 +56,9 @@
 #include <iostream>
 #include <sstream>
 
+#include "BlockSchurPreconditioner.hpp"
+#include "Time.hpp"
+
 // @sect3{The incompressible Navier-Stokes solver}
   //
   // Parallel incompressible Navier Stokes equation solver using
@@ -135,14 +138,6 @@
     Time time;
     mutable TimerOutput timer;
   };
-
-
-
-
-
-
-
-
 
 
 #endif

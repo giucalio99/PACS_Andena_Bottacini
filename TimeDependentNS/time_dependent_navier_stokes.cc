@@ -70,6 +70,9 @@
 
 #include "InsIMEX.hpp"
 #include "BlockSchurPreconditioner.hpp"
+#include "MyDataStruct.hpp"
+
+using json = nlohmann::json;
 
 
 
@@ -91,27 +94,18 @@ const double T = stratosphere ? 217. : 303.; // [K] fluid temperature
 const double p_over_rho = 0.;// Boundary condition at fluid outlet
 const double delta = p_amb/101325*298/T;
 const double rho = stratosphere ? 0.089 : 1.225; // kg m^-3
-const double Mm = 29.e-3; // kg m^-3,average air molar mass
+const double Mm = 2.9e-2; // kg m^-3,average air molar mass
 const double Avo = 6.022e+23; // Avogadro's number
 
 const double q_over_eps_0 = q0 / eps_0; // [m^3 kg C^-1 s^-2]
-const double mu0 = 1.83e-4; // [m^2/s/V] from Moseley
+const double mu0 = 1.83e-4; // [m^2/(s*V)] from Moseley
 const double mu = mu0 * delta; // scaled mobility from Moseley      
 const double V_E = kB * T / q0; // [V] ion temperature
 const double D = mu * V_E;
 //const double n_air = rho / Mm * Avo; // m^-3
 
-// Geometry Data
-
 // emitter
 const double Ve = 2.e+4; // [V] emitter voltage
-const double Re = 2.5e-5; // [m] emitter radius                                 !!!!
-const double X = -Re; // [m] emitter center                                     !!!!
-
-const double g = 0.02; // [m] interelectrode distance
-
-// collector
-const double collector_length = 0.1; // [m]                                     !!!!
 
 // Peek's law (empyrical)
 const double eps = 1.; // wire surface roughness correction coefficient
@@ -120,134 +114,6 @@ const double Ri = Ep/E_ON*Re; // [m] ionization radius
 const double Vi = Ve - Ep*Re*log(Ep/E_ON); // [V] voltage on ionization region boundary
 
 using namespace dealii;
-
-//Must insert the part to import the mesh created in gmesh
-
-
-
-
-// @sect3{Time stepping}
-// This class is pretty much self-explanatory.
-class Time
-{
-  public:
-    Time(const double time_end,
-         const double delta_t,
-         const double output_interval,
-         const double refinement_interval)
-      : timestep(0),
-        time_current(0.0),
-        time_end(time_end),
-        delta_t(delta_t),
-        output_interval(output_interval),
-        refinement_interval(refinement_interval)
-    {
-    }
-    double current() const { return time_current; }
-    double end() const { return time_end; }
-    double get_delta_t() const { return delta_t; }
-    unsigned int get_timestep() const { return timestep; }
-    bool time_to_output() const;
-    bool time_to_refine() const;
-    void increment();
-
-  private:
-    unsigned int timestep;
-    double time_current;
-    const double time_end;
-    const double delta_t;
-    const double output_interval;
-    const double refinement_interval;
-};
-
-bool Time::time_to_output() const
-  {
-    unsigned int delta = static_cast<unsigned int>(output_interval / delta_t);
-    return (timestep >= delta && timestep % delta == 0);
-  }
-
-bool Time::time_to_refine() const
-  {
-    unsigned int delta = static_cast<unsigned int>(refinement_interval / delta_t);
-    return (timestep >= delta && timestep % delta == 0);
-  }
-
-void Time::increment()
-  {
-    time_current += delta_t;
-    ++timestep;
-  }
-
-
-
-
-
-
-
-
-
-
-
-
-  // @sect3{Boundary values}
-  // Dirichlet boundary conditions for the velocity inlet and walls.
-template <int dim>
-class BoundaryValues : public Function<dim>
-  {
-  public:
-    BoundaryValues() : Function<dim>(dim + 1) {}
-    virtual double value(const Point<dim> &p,
-                         const unsigned int component) const override;
-
-    virtual void vector_value(const Point<dim> &p,
-                              Vector<double> &values) const override;
-  };
-
-template <int dim>
-double BoundaryValues<dim>::value(const Point<dim> &p,
-                                    const unsigned int component) const
-  {
-    Assert(component < this->n_components,
-           ExcIndexRange(component, 0, this->n_components));
-    double left_boundary = (dim == 2 ? 0.3 : 0.0);
-    if (component == 0 && std::abs(p[0] - left_boundary) < 1e-10)
-      {
-        // For a parabolic velocity profile, $U_\mathrm{avg} = 2/3
-        // U_\mathrm{max}$
-        // in 2D, and $U_\mathrm{avg} = 4/9 U_\mathrm{max}$ in 3D.
-        // If $\nu = 0.001$, $D = 0.1$, then $Re = 100 U_\mathrm{avg}$.
-        double Uavg = 1.0;
-        double Umax = (dim == 2 ? 3 * Uavg / 2 : 9 * Uavg / 4);
-        double value = 4 * Umax * p[1] * (0.41 - p[1]) / (0.41 * 0.41);
-        if (dim == 3)
-          {
-            value *= 4 * p[2] * (0.41 - p[2]) / (0.41 * 0.41);
-          }
-        return value;
-      }
-    return 0;
-  }
-
-template <int dim>
-void BoundaryValues<dim>::vector_value(const Point<dim> &p,
-                                         Vector<double> &values) const
-  {
-    for (unsigned int c = 0; c < this->n_components; ++c)
-      values(c) = BoundaryValues<dim>::value(p, c);
-  }
-
-  
-
-
-
-
-
-
-
-
-
-
-
 
 void create_triangulation(Triangulation<2> &tria)
   {
@@ -258,7 +124,7 @@ void create_triangulation(Triangulation<2> &tria)
     grid_in.attach_triangulation(triangulation);            //Attach this triangulation to be fed with the grid data
     grid_in.read_msh(input_file);                           //Read grid data from an msh file
 
-    const types::manifold_id emitter = 1;                   //The type used to denote manifold indicators associated with every object of the mesh
+    const types::manifold_id_emitter = 1;                   //The type used to denote manifold indicators associated with every object of the mesh
     const Point<dim> center(X,0.);
     SphericalManifold<2> emitter_manifold(center);
 
@@ -286,7 +152,7 @@ double get_collector_height(const double &p)
 		double a2 = -0.3516;
 		double a3 = 0.2843;
 		double a4 = -0.1036; // or -0.1015 for an open trailing edge
-		double t = 0.1; // Last 2 digits of the NACA by 100
+		double t = s_data.last_2_digits; // Last 2 digits of the NACA by 100
 
 		y = 5*t*( a0 * sqrt(x) + a1 * x + a2 * pow(x,2.0) + a3 * pow(x,3.0) + a4 * pow(x,4.0) );
 	}
@@ -345,51 +211,89 @@ return x;                                                                       
 }  
 // Collector Manifold - END
 
-
-  
-
-
-  
+ 
 
 // @sect3{main function}
 //
 int main(int argc, char *argv[])
 {
-  try
-    {
-      using namespace dealii;
-      using namespace fluid;
+// RETRIVE DATA FROM .JSON FILE 
 
-      Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
-      parallel::distributed::Triangulation<2> tria(MPI_COMM_WORLD);
-      create_triangulation(tria);
-      InsIMEX<2> flow(tria);
-      flow.run();
-    }
-  catch (std::exception &exc)
-    {
-      std::cerr << std::endl
-                << std::endl
-                << "----------------------------------------------------"
-                << std::endl;
-      std::cerr << "Exception on processing: " << std::endl
-                << exc.what() << std::endl
-                << "Aborting!" << std::endl
-                << "----------------------------------------------------"
-                << std::endl;
-      return 1;
-    }
-  catch (...)
-    {
-      std::cerr << std::endl
-                << std::endl
-                << "----------------------------------------------------"
-                << std::endl;
-      std::cerr << "Unknown exception!" << std::endl
-                << "Aborting!" << std::endl
-                << "----------------------------------------------------"
-                << std::endl;
-      return 1;
-    }
-  return 0;
+// Open a file stream for reading
+std::ifstream inFile("Data.json");
+
+// Check if the file stream is open
+if (!inFile.is_open()) {
+  std::cerr << "Failed to open the file for reading." << std::endl;
+  return 1;
+}
+
+// Read JSON data from the file
+json json_data;       //object type json
+inFile >> json_data;
+
+// Close the file stream
+inFile.close();
+
+// Access the data from the JSON object and store them in MyDataStruct object
+
+MyDataStruct s_data;  //structured data
+
+s_data.airfoil_type = json_data["airfoil_type"];       
+s_data.last_two_digit = json_data["last_2_digit_NACA"];           
+s_data.chord_length = json_data["chord_length"];            
+s_data.radius_emitter = json_data["radius_emitter"];
+s_data.distance_emitter_collector=json_data["distance_emitter_collector"];
+s_data.distance_Tedge_outlet=json_data["distance_Tedge_outlet"];
+s_data.distance_emitter_inlet=json_data["distance_emitter_inlet"];
+s_data.distance_emitter_up_bottom=json_data["distance_emitter_up_bottom"];
+s_data.cylinder_emitter_radius=json_data["cylinder_emitter_radius"];
+s_data.box_profile_semi_minor_axis=json_data["box_profile_semi_minor_axis"];
+s_data.box_profile_semi_major_axis=json_data["box_profile_semi_major_axis"];
+
+//Definition of geometry constants
+
+const double re = s_data.radius_emitter ; // [m] emitter radius                                 
+const double g = s_data.distance_emitter_collector; // [m] interelectrode distance
+const double X = -re-g; // [m] emitter center 
+const double collector_length = s_data.chord_length; // [m] collector length                              
+
+
+
+try
+  {
+    using namespace dealii;
+
+    Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
+    parallel::distributed::Triangulation<2> tria(MPI_COMM_WORLD);
+    create_triangulation(tria);
+    InsIMEX<2> flow(tria);
+    flow.run();
+  }
+catch (std::exception &exc)
+  {
+    std::cerr << std::endl
+              << std::endl
+              << "----------------------------------------------------"
+              << std::endl;
+    std::cerr << "Exception on processing: " << std::endl
+              << exc.what() << std::endl
+              << "Aborting!" << std::endl
+              << "----------------------------------------------------"
+              << std::endl;
+    return 1;
+  }
+catch (...)
+  {
+    std::cerr << std::endl
+              << std::endl
+              << "----------------------------------------------------"
+              << std::endl;
+    std::cerr << "Unknown exception!" << std::endl
+              << "Aborting!" << std::endl
+              << "----------------------------------------------------"
+              << std::endl;
+    return 1;
+  }
+return 0;
 }
