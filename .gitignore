@@ -1,0 +1,7 @@
+# Ignore files in the .vscode directory
+.vscode/
+# Ignore object files
+*.o
+# Ignore .geo files
+*.geo
+
