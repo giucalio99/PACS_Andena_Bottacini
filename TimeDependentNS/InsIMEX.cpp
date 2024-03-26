@@ -132,7 +132,7 @@ void InsIMEX<dim>::make_constraints()
     {
         VectorTools::interpolate_boundary_values(dof_handler,               //Assign B.C. different from zero in nonzero_constraints
                                                 id,
-                                                BoundaryValues<dim>(),
+                                                BoundaryValues<dim>(),      //For each degree of freedom at the boundary, its boundary value will be overwritten if its index already exists in boundary_values. Otherwise, a new entry with proper index and boundary value for this degree of freedom will be inserted into boundary_values.     
                                                 nonzero_constraints,
                                                 fe.component_mask(velocities));
         VectorTools::interpolate_boundary_values(
@@ -242,7 +242,7 @@ void InsIMEX<dim>::assemble(bool use_nonzero_constraints,
     std::vector<Tensor<2, dim>> grad_phi_u(dofs_per_cell);
     std::vector<double> phi_p(dofs_per_cell);
 
-    for (auto cell = dof_handler.begin_active(); cell != dof_handler.end();      //Iterator from the first active cell to the lasto one
+    for (auto cell = dof_handler.begin_active(); cell != dof_handler.end();      //Iterator from the first active cell to the last one
         ++cell)
     {
         if (cell->is_locally_owned())
