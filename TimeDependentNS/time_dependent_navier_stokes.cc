@@ -113,30 +113,9 @@ const double Ep = E_ON*delta*eps*(1+0.308/std::sqrt(Re*1.e+2*delta));
 const double Ri = Ep/E_ON*Re; // [m] ionization radius
 const double Vi = Ve - Ep*Re*log(Ep/E_ON); // [V] voltage on ionization region boundary
 
+
+
 using namespace dealii;
-
-void create_triangulation(Triangulation<2> &tria)
-  {
-    const std::string filename = "./Meshes/BOXED_ELLIPSE.msh";
-    cout << "Reading from " << filename << endl;
-    std::ifstream input_file(filename);
-    GridIn<2>       grid_in;
-    grid_in.attach_triangulation(triangulation);            //Attach this triangulation to be fed with the grid data
-    grid_in.read_msh(input_file);                           //Read grid data from an msh file
-
-    const types::manifold_id_emitter = 1;                   //The type used to denote manifold indicators associated with every object of the mesh
-    const Point<dim> center(X,0.);
-    SphericalManifold<2> emitter_manifold(center);
-
-    const types::manifold_id collector = 2;
-    CollectorGeometry<2> collector_manifold;                
-
-    tria.set_all_manifold_ids_on_boundary(1, emitter);
-    tria.set_manifold(emitter, emitter_manifold);
-    tria.set_all_manifold_ids_on_boundary(2, collector);
-    tria.set_manifold(collector, collector_manifold);
-    cout  << "Active cells: " << tria.n_active_cells() << endl;
-  }
 
 
 // Collector Manifold - START
@@ -212,6 +191,33 @@ return x;                                                                       
 // Collector Manifold - END
 
  
+
+
+ void create_triangulation(Triangulation<2> &tria)
+{
+  const std::string filename = "./Meshes/BOXED_ELLIPSE.msh";
+  cout << "Reading from " << filename << endl;
+  std::ifstream input_file(filename);
+  GridIn<2>       grid_in;
+  grid_in.attach_triangulation(triangulation);            //Attach this triangulation to be fed with the grid data
+  grid_in.read_msh(input_file);                           //Read grid data from an msh file
+
+  const types::manifold_id_emitter = 1;                   //The type used to denote manifold indicators associated with every object of the mesh
+  const Point<dim> center(X,0.);
+  SphericalManifold<2> emitter_manifold(center);
+
+  const types::manifold_id collector = 2;
+  CollectorGeometry<2> collector_manifold;                
+
+  tria.set_all_manifold_ids_on_boundary(1, emitter);
+  tria.set_manifold(emitter, emitter_manifold);
+  tria.set_all_manifold_ids_on_boundary(2, collector);
+  tria.set_manifold(collector, collector_manifold);
+  cout  << "Active cells: " << tria.n_active_cells() << endl;
+}
+
+
+
 
 // @sect3{main function}
 //

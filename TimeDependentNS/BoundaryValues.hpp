@@ -68,37 +68,29 @@ class BoundaryValues : public Function<dim>
   {
   public:
     BoundaryValues() : Function<dim>(dim + 1) {}
+    
     virtual double value(const Point<dim> &p,
                          const unsigned int component) const override;
-
     virtual void vector_value(const Point<dim> &p,
                               Vector<double> &values) const override;
   };
 
 template <int dim>
-double BoundaryValues<dim>::value(const Point<dim> &p,
-                                    const unsigned int component) const
-  {
-    Assert(component < this->n_components,
-           ExcIndexRange(component, 0, this->n_components));
-    double left_boundary = (dim == 2 ? 0.3 : 0.0);
-    if (component == 0 && std::abs(p[0] - left_boundary) < 1e-10)
-      {
-        // For a parabolic velocity profile, $U_\mathrm{avg} = 2/3
-        // U_\mathrm{max}$
-        // in 2D, and $U_\mathrm{avg} = 4/9 U_\mathrm{max}$ in 3D.
-        // If $\nu = 0.001$, $D = 0.1$, then $Re = 100 U_\mathrm{avg}$.
-        double Uavg = 1.0;
-        double Umax = (dim == 2 ? 3 * Uavg / 2 : 9 * Uavg / 4);
-        double value = 4 * Umax * p[1] * (0.41 - p[1]) / (0.41 * 0.41);
-        if (dim == 3)
-          {
-            value *= 4 * p[2] * (0.41 - p[2]) / (0.41 * 0.41);
-          }
-        return value;
-      }
-    return 0;
-  }
+double BoundaryValues<dim>::value(const Point<dim> & /*p*/,
+								                  const unsigned int component) const
+{
+ Assert(component < this->n_components,
+		ExcIndexRange(component, 0, this->n_components));
+
+ if (component == 0) {
+	return 1.;
+ }
+
+ if (component == dim)
+		return p_over_rho;      // Boundary condition at fluid outlet
+
+ return 0.;
+}
 
 template <int dim>
 void BoundaryValues<dim>::vector_value(const Point<dim> &p,
@@ -107,5 +99,6 @@ void BoundaryValues<dim>::vector_value(const Point<dim> &p,
     for (unsigned int c = 0; c < this->n_components; ++c)
       values(c) = BoundaryValues<dim>::value(p, c);
   }
+
 
 #endif

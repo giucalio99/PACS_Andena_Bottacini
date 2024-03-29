@@ -112,37 +112,92 @@ void InsIMEX<dim>::make_constraints()
 {
     // Because the equation is written in incremental form, two constraints
     // are needed: nonzero constraint and zero constraint.
-    nonzero_constraints.clear();
-    zero_constraints.clear();
-    nonzero_constraints.reinit(locally_relevant_dofs);      //clear() the AffineConstraints object and supply an IndexSet with lines that may be constrained
-    zero_constraints.reinit(locally_relevant_dofs);
-    DoFTools::make_hanging_node_constraints(dof_handler, nonzero_constraints);      //Necessary when work with not homogeneous refinment 
-    DoFTools::make_hanging_node_constraints(dof_handler, zero_constraints);
+    nonzero_NS_constraints.clear();
+    zero_NS_constraints.clear();
+    nonzero_NS_constraints.reinit(locally_relevant_dofs);      //clear() the AffineConstraints object and supply an IndexSet with lines that may be constrained
+    zero_NS_constraints.reinit(locally_relevant_dofs);
+    DoFTools::make_hanging_node_constraints(dof_handler, nonzero_NS_constraints);      //Necessary when work with not homogeneous refinment 
+    DoFTools::make_hanging_node_constraints(dof_handler, zero_NS_constraints);
 
     // Apply Dirichlet boundary conditions on all boundaries except for the
     // outlet.
     std::vector<unsigned int> dirichlet_bc_ids;                        //To change it                           
-    if (dim == 2)
-    dirichlet_bc_ids = std::vector<unsigned int>{0, 2, 3, 4};                
-    else
-    dirichlet_bc_ids = std::vector<unsigned int>{0, 2, 3, 4, 5, 6};
 
+    dirichlet_bc_ids = std::vector<unsigned int>{1, 2, 3};                
+    
     FEValuesExtractors::Vector velocities(0);
-    for (auto id : dirichlet_bc_ids)
-    {
-        VectorTools::interpolate_boundary_values(dof_handler,               //Assign B.C. different from zero in nonzero_constraints
-                                                id,
-                                                BoundaryValues<dim>(),      //For each degree of freedom at the boundary, its boundary value will be overwritten if its index already exists in boundary_values. Otherwise, a new entry with proper index and boundary value for this degree of freedom will be inserted into boundary_values.     
-                                                nonzero_constraints,
-                                                fe.component_mask(velocities));
-        VectorTools::interpolate_boundary_values(
-        dof_handler,
-        id,
-        Functions::ZeroFunction<dim>(dim + 1),
-        zero_constraints,
-        fe.component_mask(velocities));
-    }
-    nonzero_constraints.close();        //After closing, no more entries are accepted
+
+    //Nonzero_NS_constraints
+    VectorTools::interpolate_boundary_values(dof_handler,                           //Assign B.C. different from zero in nonzero_constraints
+                                            0,
+                                            Functions::ZeroFunction<dim>(dim+1),    //For each degree of freedom at the boundary, its boundary value will be overwritten if its index already exists in boundary_values. Otherwise, a new entry with proper index and boundary value for this degree of freedom will be inserted into boundary_values.
+                                            nonzero_NS_constraints,
+                                            fe.component_mask(vertical_velocity));
+    VectorTools::interpolate_boundary_values(dof_handler,
+                                            1,
+                                            Functions::ZeroFunction<dim>(dim+1),
+                                            nonzero_NS_constraints,
+                                            fe.component_mask(velocities));
+    VectorTools::interpolate_boundary_values(dof_handler,
+                                            2,
+                                            Functions::ZeroFunction<dim>(dim+1),
+                                            nonzero_NS_constraints,
+                                            NS_fe.component_mask(velocities));
+    VectorTools::interpolate_boundary_values(dof_handler,
+                                            3,
+                                            Functions::ZeroFunction<dim>(dim+1),
+                                            nonzero_NS_constraints,
+                                            NS_fe.component_mask(velocities));
+
+    VectorTools::interpolate_boundary_values(dof_handler, 
+                                            10, Functions::ZeroFunction<dim>(dim+1), 
+                                            nonzero_NS_constraints, 
+                                            NS_fe.component_mask(vertical_velocity));
+    
+
+    VectorTools::interpolate_boundary_values(dof_handler,
+                                            11,                                    // Outlet
+                                            BoundaryValues<dim>(),//Functions::ZeroFunction<dim>(dim+1),
+                                            nonzero_NS_constraints,
+                                            NS_fe.component_mask(vertical_velocity_and_pressure));
+
+
+
+
+    //Zero_NS_constraints
+    VectorTools::interpolate_boundary_values(dof_handler,
+                                            0,
+                                            Functions::ZeroFunction<dim>(dim+1),
+                                            zero_NS_constraints,
+                                            NS_fe.component_mask(vertical_velocity));
+    VectorTools::interpolate_boundary_values(dof_handler,
+                                            1,
+                                            Functions::ZeroFunction<dim>(dim+1),
+                                            zero_NS_constraints,
+                                            NS_fe.component_mask(velocities));
+    VectorTools::interpolate_boundary_values(dof_handler,
+                                            2,
+                                            Functions::ZeroFunction<dim>(dim+1),
+                                            zero_NS_constraints,
+                                            NS_fe.component_mask(velocities));
+    VectorTools::interpolate_boundary_values(dof_handler,
+                                            3,
+                                            Functions::ZeroFunction<dim>(dim+1),
+                                            zero_NS_constraints,
+                                            NS_fe.component_mask(velocities));
+    VectorTools::interpolate_boundary_values(dof_handler,
+                                            10,
+                                            Functions::ZeroFunction<dim>(dim+1),
+                                            zero_NS_constraints,
+                                            NS_fe.component_mask(velocities));
+    VectorTools::interpolate_boundary_values(dof_handler,
+                                            11, 
+                                            Functions::ZeroFunction<dim>(dim+1),
+                                            zero_NS_constraints,
+                                            NS_fe.component_mask(vertical_velocity_and_pressure));
+                                             
+
+    nonzero_constraints.close();         //After closing, no more entries are accepted
     zero_constraints.close();
 }
 
