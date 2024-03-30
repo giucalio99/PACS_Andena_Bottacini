@@ -63,6 +63,7 @@ namespace dealii;
 
 // @sect3{Time stepping}
 // This class is pretty much self-explanatory.
+//I create an object of this class that helps me keeping track of the time during the run.
 class Time
 {
   public:
@@ -97,8 +98,8 @@ class Time
 
 bool Time::time_to_output() const
   {
-    unsigned int delta = static_cast<unsigned int>(output_interval / delta_t);
-    return (timestep >= delta && timestep % delta == 0);
+    unsigned int delta = static_cast<unsigned int>(output_interval / delta_t);            //Number of steps after that an ouput must be generated
+    return (timestep >= delta && timestep % delta == 0);                                  //If current timestep is an integer multiple of delta, returns true
   }
 
 bool Time::time_to_refine() const
@@ -107,7 +108,7 @@ bool Time::time_to_refine() const
     return (timestep >= delta && timestep % delta == 0);
   }
 
-void Time::increment()
+void Time::increment()                 //Update the current time and current timestep during the run
   {
     time_current += delta_t;
     ++timestep;

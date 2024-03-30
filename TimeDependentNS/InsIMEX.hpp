@@ -87,6 +87,7 @@
                                           bool assemble_system);
     void refine_mesh(const unsigned int, const unsigned int);
     void output_results(const unsigned int) const;
+
     double viscosity;
     double gamma;
     const unsigned int degree;
@@ -94,46 +95,38 @@
 
     parallel::distributed::Triangulation<dim> &triangulation;
     FESystem<dim> fe;
-    DoFHandler<dim> dof_handler;                    //The DoFHandler object that describes which degrees of freedom live on which cells.
+    DoFHandler<dim> dof_handler;                             //The DoFHandler object that describes which degrees of freedom live on which cells.
     QGauss<dim> volume_quad_formula;
     QGauss<dim - 1> face_quad_formula;
 
-    AffineConstraints<double> zero_constraints;      //Each "line" in objects of this class corresponds to one constrained degree of freedom
+    AffineConstraints<double> zero_constraints;              //Each "line" in objects of this class corresponds to one constrained degree of freedom
     AffineConstraints<double> nonzero_constraints;
 
     BlockSparsityPattern sparsity_pattern;
-    // System matrix to be solved
-    PETScWrappers::MPI::BlockSparseMatrix system_matrix;
-    // Mass matrix is a block matrix which includes both velocity
-    // mass matrix and pressure mass matrix.
-    PETScWrappers::MPI::BlockSparseMatrix mass_matrix;
-    // The schur complement of mass matrix is not a block matrix.
-    // However, because we want to reuse the partition we created
-    // for the system matrix, it is defined as a block matrix
-    // where only one block is actually used.
-    PETScWrappers::MPI::BlockSparseMatrix mass_schur;
-    // The latest known solution.
-    PETScWrappers::MPI::BlockVector present_solution;
-    // The increment at a certain time step.
-    PETScWrappers::MPI::BlockVector solution_increment;
-    // System RHS
-    PETScWrappers::MPI::BlockVector system_rhs;
+    
+    PETScWrappers::MPI::BlockSparseMatrix system_matrix;     // System matrix to be solved
+    
+    PETScWrappers::MPI::BlockSparseMatrix mass_matrix;       // Block matrix which includes both velocity mass matrix and pressure mass matrix.
+    
+    PETScWrappers::MPI::BlockSparseMatrix mass_schur;        // The schur complement of mass matrix is not a block matrix. It is defined as a block matrix where only one block is actually used to reuse the partition we created for the system matrix
+  
+    PETScWrappers::MPI::BlockVector present_solution;        // The latest known solution.
+    
+    PETScWrappers::MPI::BlockVector solution_increment;      // The increment at a certain time step.
+   
+    PETScWrappers::MPI::BlockVector system_rhs;              // System RHS
 
     MPI_Comm mpi_communicator;
 
-    ConditionalOStream pcout;                     //A class allows you to print an output stream, useful in parallel computations
+    ConditionalOStream pcout;                                //A class allows you to print an output stream, useful in parallel computations
 
-    // The IndexSets of owned velocity and pressure respectively.
-    std::vector<IndexSet> owned_partitioning;
+    std::vector<IndexSet> owned_partitioning;                // The IndexSets of owned velocity and pressure respectively.
 
-    // The IndexSets of relevant velocity and pressure respectively.
-    std::vector<IndexSet> relevant_partitioning;
+    std::vector<IndexSet> relevant_partitioning;             // The IndexSets of relevant velocity and pressure respectively.
+  
+    IndexSet locally_relevant_dofs;                          //IndexSet: a class that represents a subset of indices among a larger set. 
 
-    // The IndexSet of all relevant dofs.
-    IndexSet locally_relevant_dofs;              //A class that represents a subset of indices among a larger set. 
-
-    // The BlockSchurPreconditioner for the entire system.
-    std::shared_ptr<BlockSchurPreconditioner> preconditioner;
+    std::shared_ptr<BlockSchurPreconditioner> preconditioner;   // The BlockSchurPreconditioner for the entire system.
 
     Time time;
     mutable TimerOutput timer;

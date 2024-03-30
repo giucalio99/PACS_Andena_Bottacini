@@ -80,26 +80,27 @@ template <int dim>
 void InsIMEX<dim>::setup_dofs()
 {
     // The first step is to associate DoFs with a given mesh.
-    dof_handler.distribute_dofs(fe);     //Distribute the dof needed for the given fe on my triangulation    // We renumber the components to have all velocity DoFs come before
+    dof_handler.distribute_dofs(fe);     //Distribute the dof needed for the given fe on the triangulation that i passed in the constructor   // We renumber the components to have all velocity DoFs come before
     // the pressure DoFs to be able to split the solution vector in two blocks
     // which are separately accessed in the block preconditioner.
-    DoFRenumbering::Cuthill_McKee(dof_handler);                //Renumber the degrees of freedom according to the Cuthill-McKee method. FUnction from numspace DofREnumbering
-    std::vector<unsigned int> block_component(dim + 1, 0);     //Musk for the reording
+    DoFRenumbering::Cuthill_McKee(dof_handler);                      //Renumber the degrees of freedom according to the Cuthill-McKee method.
+    std::vector<unsigned int> block_component(dim + 1, 0);           //Musk for the reording       //Block: in our case are two, one with dimension = dim and one with dimension = 1
     block_component[dim] = 1;
-    DoFRenumbering::component_wise(dof_handler, block_component);    
-    dofs_per_block = DoFTools::count_dofs_per_fe_block(dof_handler, block_component);    //Block: in our case are two, one with dimension = dim and one with dimension = 1
+    DoFRenumbering::component_wise(dof_handler, block_component);    //We want to sort degree of freedom for a NS discretization so that we first get all velocities and then all the pressures so that the resulting matrix naturally decomposes into a 2×2 system.
+    dofs_per_block = DoFTools::count_dofs_per_fe_block(dof_handler, block_component); //Returns a vector (of dim=2) of types::global_dof_index  
     // Partitioning.
     unsigned int dof_u = dofs_per_block[0];
     unsigned int dof_p = dofs_per_block[1];
+
     owned_partitioning.resize(2);
     owned_partitioning[0] = dof_handler.locally_owned_dofs().get_view(0, dof_u);      //Extract the set of locally owned DoF indices for each component within the mask that are owned by the current processor.
-    owned_partitioning[1] =
-    dof_handler.locally_owned_dofs().get_view(dof_u, dof_u + dof_p);
+    owned_partitioning[1] = dof_handler.locally_owned_dofs().get_view(dof_u, dof_u + dof_p);
+
     locally_relevant_dofs = DoFTools::extract_locally_relevant_dofs(dof_handler);     //Extract the set of global DoF indices that are active on the current DoFHandler.
     relevant_partitioning.resize(2);
     relevant_partitioning[0] = locally_relevant_dofs.get_view(0, dof_u);
-    relevant_partitioning[1] =
-    locally_relevant_dofs.get_view(dof_u, dof_u + dof_p);
+    relevant_partitioning[1] = locally_relevant_dofs.get_view(dof_u, dof_u + dof_p);
+
     pcout << "   Number of active fluid cells: "
         << triangulation.n_global_active_cells() << std::endl
         << "   Number of degrees of freedom: " << dof_handler.n_dofs() << " ("
@@ -156,7 +157,8 @@ void InsIMEX<dim>::make_constraints()
     
 
     VectorTools::interpolate_boundary_values(dof_handler,
-                                            11,                                    // Outlet
+                                            11,                                    
+                                            // Outlet
                                             BoundaryValues<dim>(),//Functions::ZeroFunction<dim>(dim+1),
                                             nonzero_NS_constraints,
                                             NS_fe.component_mask(vertical_velocity_and_pressure));
@@ -201,6 +203,8 @@ void InsIMEX<dim>::make_constraints()
     zero_constraints.close();
 }
 
+
+
 // @sect4{InsIMEX::initialize_system}
 template <int dim>
 void InsIMEX<dim>::initialize_system()
@@ -241,6 +245,8 @@ void InsIMEX<dim>::initialize_system()
     // solver and residual evaluation.
     system_rhs.reinit(owned_partitioning, mpi_communicator);
 }
+
+
 
 // @sect4{InsIMEX::assemble}
 //
@@ -396,6 +402,8 @@ void InsIMEX<dim>::assemble(bool use_nonzero_constraints,
     system_rhs.compress(VectorOperation::add);
 }
 
+
+
 // @sect4{InsIMEX::solve}
 // Solve the linear system using FGMRES solver with block preconditioner.
 // After solving the linear system, the same AffineConstraints object as used
@@ -437,6 +445,8 @@ InsIMEX<dim>::solve(bool use_nonzero_constraints, bool assemble_system)
     return {solver_control.last_step(), solver_control.last_value()};
 }
 
+
+
 // @sect4{InsIMEX::run}
 template <int dim>
 void InsIMEX<dim>::run()
@@ -452,15 +462,15 @@ void InsIMEX<dim>::run()
 
     // Time loop.
     bool refined = false;
-    while (time.end() - time.current() > 1e-12)          //We are not still at the end
+    while (time.end() - time.current() > 1e-12)            //We are not still at the end
     {
         if (time.get_timestep() == 0)
         {
-            output_results(0);
+            output_results(0);                             //Print result at 0 timestep
         }
         time.increment();
-        std::cout.precision(6);                        //This means that when floating-point numbers are output to std::cout, they will be displayed with up to 6 digits after the decimal point.
-        std::cout.width(12);                           //Sets the minimum field width to 12 characters
+        std::cout.precision(6);                           //This means that when floating-point numbers are output to std::cout, they will be displayed with up to 6 digits after the decimal point.
+        std::cout.width(12);                              //Sets the minimum field width to 12 characters
         pcout << std::string(96, '*') << std::endl
             << "Time step = " << time.get_timestep()
             << ", at t = " << std::scientific << time.current() << std::endl;
@@ -473,7 +483,9 @@ void InsIMEX<dim>::run()
         // as well as the steps imediately after mesh refinement.
         bool assemble_system = (time.get_timestep() < 3 || refined);
         refined = false;
+
         assemble(apply_nonzero_constraints, assemble_system);
+
         auto state = solve(apply_nonzero_constraints, assemble_system);
         // Note we have to use a non-ghosted vector to do the addition.
         PETScWrappers::MPI::BlockVector tmp;
@@ -486,7 +498,7 @@ void InsIMEX<dim>::run()
         // Output
         if (time.time_to_output())
         {
-            output_results(time.get_timestep());
+            output_results(time.get_timestep());         //Print result at current timestep
         }
         if (time.time_to_refine())
         {
@@ -495,6 +507,8 @@ void InsIMEX<dim>::run()
         }
     }
 }
+
+
 
 // @sect4{InsIMEX::output_result}
 //
@@ -511,7 +525,7 @@ void InsIMEX<dim>::output_results(const unsigned int output_index) const
         dim, DataComponentInterpretation::component_is_part_of_vector);
     data_component_interpretation.push_back(
     DataComponentInterpretation::component_is_scalar);
-    DataOut<dim> data_out;                              //This class is the main class to provide output of data described by finite element fields defined on a collection of cells.
+    DataOut<dim> data_out;                                               //This class is the main class to provide output of data described by finite element fields defined on a collection of cells.
     data_out.attach_dof_handler(dof_handler);
     // vector to be output must be ghosted
     data_out.add_data_vector(present_solution,
