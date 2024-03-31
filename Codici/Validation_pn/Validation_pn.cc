@@ -22,7 +22,7 @@
 
 // This code solve the Dirift Diffusion equation in a rectangular pn junction, in particular we perform a validation on the solver for
 // the electrical part of the problem, we test the method considering a semiconductor problem, whit a well known solution.
-// The problem consists in solving for the potential, charge and hole densities in a pn junction.
+// The problem consists in solving for the potential, charge and hole densities.
 
 // Time-stepping from step-26
 
@@ -58,6 +58,7 @@
 
 #include <fstream>
 #include <cmath>
+
 #include "Problem.hpp" //header file that contains the template class Problem created by MM
 
 using namespace dealii;

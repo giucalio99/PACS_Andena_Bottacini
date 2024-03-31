@@ -25,6 +25,32 @@ std::vector<double> GCL_nodes(double a, double b, int n){
     return x_coord;
 }
 
+//--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+//This auxiliari function compute a parabolic function [0,1]-->[0,1]. In this way we can give different weights to the mesh refinement of the
+// points that build the airfoil profile. a,b,c are the parameters of the parabola shape and x coord are the x coordinates
+std::vector<double> Weights_mesh_ref(double a, double b, double c, std::vector<double> & x_coord){
+
+    //we define a lambda function (parabola)
+    auto F = [a,b,c](double x) -> double {
+
+        return a*std::pow(x,2) + b*x +c;
+    };
+
+    std::vector<double> y_coord;
+    y_coord.reserve(x_coord.size());
+
+    //fill the vector
+    for(size_t k=0; k<x_coord.size(); ++k){
+
+      y_coord.push_back(F(x_coord[k]));
+
+    } 
+
+
+    return y_coord;
+
+}
+
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // This method compute the points (Point instances identified by an unique tag) that wrap the x,y coordinates of the airfoil profile
 // and the relative mesh refinemet, it stores them in a vector
@@ -33,16 +59,18 @@ std::vector<Point> Build_Geometry::compute_profile() const{
 
     // you want to retrive the coordinates of the points that build the airfoil; the front point of the airfoil is located in (0,0).
 
-    // create vectors of double to store the coordinates, one for the x coordinates, the other two for the upper
-    // and the lower profile of the NACA respectively 
+    // create vectors of double to store the coordinates, one for the x coordinates, other two for the upper
+    // and the lower profile of the NACA respectively and finally the vector that stores the weights of the mesh ref 
     std::vector<double> x_coord;
     std::vector<double> up_coord;
     std::vector<double> low_coord;
+    std::vector<double> weights;
 
     // reserve memory for the vectors
     x_coord.reserve(this->my_data.NACA_points);
     up_coord.reserve(this->my_data.NACA_points);
     low_coord.reserve(this->my_data.NACA_points);
+    weights.reserve(this->my_data.NACA_points);
 
     
     // The interval is (first,second). first is zero and second is equal to the length of the chord
@@ -89,6 +117,9 @@ std::vector<Point> Build_Geometry::compute_profile() const{
 
     }
 
+    // and we compute the weights
+    weights = Weights_mesh_ref(-3.8, 3.8, 0.03, x_coord);
+
     //finally we create a vector of Points to return, firstly we add the points of the upper profile and then the points of the lower part
     //NB: in order to have less problem with the creation of the lines, we insert the lower points starting from the last one in vector "low_coord"
 
@@ -97,14 +128,14 @@ std::vector<Point> Build_Geometry::compute_profile() const{
 
     for(size_t i = 0; i<this->my_data.NACA_points; ++i){
 
-        Point temp( x_coord[i] ,  up_coord[i] ,0.0, this->my_data.mesh_ref_1);
+        Point temp( x_coord[i] ,  up_coord[i] ,0.0, this->my_data.mesh_ref_1*weights[i]);    //NB we multiply the mesh_ref with the weights in order to achive different refineemnt along the profile
         Points.push_back(temp);
 
     }
 
     for(size_t i = this->my_data.NACA_points -2; i>0; --i){
 
-        Point temp( x_coord[i] , low_coord[i] ,0.0, this->my_data.mesh_ref_1);
+        Point temp( x_coord[i] , low_coord[i] ,0.0, this->my_data.mesh_ref_1*weights[i]);
         Points.push_back(temp);
 
     }
@@ -388,7 +419,7 @@ void Build_Geometry::write_emitter_cylinder(std::ofstream & ofs) const{
     //now we write the Cylinder field
     ofs << "Field[2]=Cylinder;"<<std::endl;
     ofs << "Field[2].Radius="<<this->my_data.cylinder_emitter_radius<<";"<<std::endl;
-    ofs << "Field[2].VIn="<<this->my_data.mesh_ref_2<<";"<<std::endl;                    //mesh refinement in the inner part of the cylinder
+    ofs << "Field[2].VIn="<<this->my_data.mesh_ref_2*0.6<<";"<<std::endl;                    //mesh refinement in the inner part of the cylinder
     ofs << "Field[2].VOut="<<this->my_data.mesh_ref_1<<";"<<std::endl;                   //mesh refinement in the outer part of the cylinder
     ofs << "Field[2].XAxis=0;"<<std::endl;                                               //X axis orientation
     ofs << "Field[2].XCenter="<<x_c<<";"<<std::endl;                                     //X coordinate of the center
@@ -446,8 +477,8 @@ void Build_Geometry::write_algorithm(std::ofstream & ofs) const{
     ofs << std::endl;
     ofs << "//ALGORITHMS"<<std::endl;
 
-    ofs << "Mesh.Algorithm = "<<this->my_data.mesh_algorithm<<";"<<std::endl;  //algorithm used to compute the mesh (see gmsh documentation)
-    ofs << "Mesh.SubdivisionAlgorithm=1;"<<std::endl;                          //command to generate quads instead of trianguls
+    ofs << "Mesh.RecombineAll=1;"<<std::endl;                      //algorithm used to compute the mesh (see gmsh documentation)
+    ofs << "Mesh.RecombinationAlgorithm=1;"<<std::endl;            //command to generate quads instead of trianguls
 
     return;
 }

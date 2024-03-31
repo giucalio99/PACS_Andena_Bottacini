@@ -6,6 +6,7 @@ comandi del make file: 1) make -f makefile.mak main         per lanciare il codi
                        2) make -f makefile.mak clean        per cancellare tutti gli output .o , executible and .geo file
 
 TODO: - dati coerenti con la corda o funzione con corda diversa?
+      - per adesso gli input della parabola non sono parametrizzati
       - structured json per i vari input (?)
-      - algoritmo dei quads va bene (?)
+      - algoritmo dei quads va bene (?). algo cambiato, con questi setting va bene ma se cambiano alcuni parametri fallisce
       - ricordarsi modificare geometri raggio ala per simu
