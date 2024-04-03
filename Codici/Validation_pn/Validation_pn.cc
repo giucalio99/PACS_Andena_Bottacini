@@ -17,8 +17,8 @@
  *
  */
 
-// This code is the original code written by Matteo Menessini modified in order to achieve a better readability 
-// by Tommaso Andena and Giacomo Bottacini
+// This code is the original code written by Matteo Menessini modified in order to achieve a better readability and performances 
+// by Tommaso Andena and Giacomo Bottacini (Politecnico di Milano 2023/2024)
 
 // This code solve the Dirift Diffusion equation in a rectangular pn junction, in particular we perform a validation on the solver for
 // the electrical part of the problem, we test the method considering a semiconductor problem, whit a well known solution.
@@ -26,7 +26,8 @@
 
 // Time-stepping from step-26
 
-#include <deal.II/base/quadrature_lib.h>
+#include <deal.II/base/quadrature_lib.h>//This header includes: header "config" that contains all the MACROS, header quadrature and header "points" !
+//and many more. NB CONTROLLARE INCLUSIONI HEADER IN MODO TALE DA RAGGIUNGERE TUTTE LE CLASSI
 #include <deal.II/base/timer.h> // for the timer
 
 #include <deal.II/dofs/dof_handler.h>
@@ -59,45 +60,18 @@
 #include <fstream>
 #include <cmath>
 
-#include "Problem.hpp" //header file that contains the template class Problem created by MM
+#include "Problem.hpp" //header file that contains the template class Problem created by MatMes
+#include "Electrical_Constants.hpp" //non penso vengano usate nel main (ma in problem.hpp)
+#include "Electrical_Values.hpp"//non pesno vengano usati nel main ( ma in problem.hpp)
 
 using namespace dealii;
 using namespace std;
 
 
-//################################################# PHYSICAL CONSTANTS #############################################################################################################################
-
-const double eps_0 = 8.854 * 1.e-12;    // [F/m]= [ (C^2 * s^2) / (kg * m^3)] = [ C^2 /(N * m^2)] Permittivity of free space
-const double eps_r = 4.;                // [ADIM] Relative permittivity
-const double q0 = 1.602 * 1.e-19;       // [C] Elementary charge
-const double kB = 1.381 * 1.e-23 ;      // [J/K] Boltzmann constant
-
-const double q_over_eps_0 = q0 / eps_0; // [m^3 kg C^-1 s^-2]
-const double L = 1.5e-6;                // Length of the domain
-const double A = 1.e+22;                // Negative doping value
-const double E = 1.e+22;                // Positive doping value ( nella tesi è chiamato D (?))
-
-const double N_0 = 1.e+16;              // constant starting ion density, charge density of ions in the ambient
-
-const double N1 = E/2. + std::sqrt(E*E+4.*N_0*N_0)/2.; // [m^-3] Electron density on boundary 1
-const double P2 = A/2. + std::sqrt(A*A+4.*N_0*N_0)/2.; // [m^-3] Electron density on boundary 1
-const double P1 = N_0*N_0/N1; // [m^-3] Electron density on boundary 2
-const double N2 = N_0*N_0/P2; // [m^-3] Electron density on boundary 2
-
-const double mup = 1.e-1;     // [(m^2)/(s*V)] Mobility of positive charges 
-const double mun = 3.e-2;     // [(m^2)/(s*V)] Mobility of holes
-const double V_E = 2.6e-2;    // [V] ion temperature in Volts for both 
-
-const double Dp = mup * V_E;  // Diffusion coefficient for holes (by Einstein relation)
-const double Dn = mun * V_E;  // Diffusion coefficinet for electrons (by Einstein relation)
-
-//#########################################################################################################################################################################################################
-
-
 void bernoulli (double x, double &bp, double &bn)
 {
   const double xlim = 1.0e-2;
-  double ax  = fabs(x);
+  double ax  = fabs(x);       // std::fabs() returns the absolute value of a floating point
 
   bp  = 0.0;
   bn  = 0.0;
@@ -241,6 +215,8 @@ FullMatrix<double> compute_triangle_matrix(const Point<2> a, const Point<2> b, c
 	return tria_matrix;
 }
 
+
+// METODO COMMENATTO DA MENESSINI NON è OPERA NOSTRA 
   /*template <int dim>
    class ExactPotentialValues : public Function<dim>
    {
@@ -280,107 +256,8 @@ FullMatrix<double> compute_triangle_matrix(const Point<2> a, const Point<2> b, c
     	Assert(false, ExcNotImplemented());
   }*/
 
-  template <int dim>
-     class DopingValues : public Function<dim>
-     {
-     public:
-   	 DopingValues() : Function<dim>()
-       {}
 
-       virtual double value(const Point<dim> & p, const unsigned int component = 0) const override;
-
-     };
-
-    template <int dim>
-    double DopingValues<dim>::value(const Point<dim> & p,
-                                     const unsigned int component) const
-    {
-      (void)component;
-      AssertIndexRange(component, 1);
-      Assert(dim == 2, ExcNotImplemented());
-
-      if (p[0] < 0.5*L)
-      	return E;
-      else
-      	return -A;
-    }
-
-    template <int dim>
-     class PotentialValues : public Function<dim>
-     {
-     public:
-   	 PotentialValues() : Function<dim>()
-       {}
-
-       virtual double value(const Point<dim> & p, const unsigned int component = 0) const override;
-
-     };
-
-    template <int dim>
-    double PotentialValues<dim>::value(const Point<dim> & p,
-                                     const unsigned int component) const
-    {
-      (void)component;
-      AssertIndexRange(component, 1);
-      Assert(dim == 2, ExcNotImplemented());
-
-     if (p[0] <= 0.45*L)
-      	return V_E*std::log(N1/N_0);
-      else
-      	return V_E*std::log(N2/N_0);
-    }
-
-    template <int dim>
-     class ElectronInitialValues : public Function<dim>
-     {
-     public:
-   	 ElectronInitialValues() : Function<dim>()
-       {}
-
-       virtual double value(const Point<dim> & p, const unsigned int component = 0) const override;
-
-     };
-
-    template <int dim>
-    double ElectronInitialValues<dim>::value(const Point<dim> & p,
-                                     const unsigned int component) const
-    {
-      (void)component;
-      AssertIndexRange(component, 1);
-      Assert(dim == 2, ExcNotImplemented());
-
-      if (p[0] <= 0.45*L)
-      	return N1;
-      else
-      	return N2;
-    }
-
-
-    template <int dim>
-     class IonInitialValues : public Function<dim>
-     {
-     public:
-   	 IonInitialValues() : Function<dim>()
-       {}
-
-       virtual double value(const Point<dim> & p, const unsigned int component = 0) const override;
-
-     };
-
-    template <int dim>
-    double IonInitialValues<dim>::value(const Point<dim> & p,
-                                     const unsigned int component) const
-    {
-      (void)component;
-      AssertIndexRange(component, 1);
-      Assert(dim == 2, ExcNotImplemented());
-
-      if (p[0] <= 0.55*L)
-      	return P1;
-      else
-      	return P2;
-    }
-
+  
 //################################### MAIN ###############################################################################################################################################
 
 int main()
