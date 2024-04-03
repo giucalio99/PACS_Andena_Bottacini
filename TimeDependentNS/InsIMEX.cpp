@@ -111,24 +111,23 @@ void InsIMEX<dim>::setup_dofs()
 template <int dim>
 void InsIMEX<dim>::make_constraints()
 {
-    // Because the equation is written in incremental form, two constraints
-    // are needed: nonzero constraint and zero constraint.
-    nonzero_NS_constraints.clear();
+    // Because the equation is written in incremental form, two constraints are needed: nonzero constraint and zero constraint.
+    
+    nonzero_NS_constraints.clear();               //Clear all entries of this matrix
     zero_NS_constraints.clear();
     nonzero_NS_constraints.reinit(locally_relevant_dofs);      //clear() the AffineConstraints object and supply an IndexSet with lines that may be constrained
     zero_NS_constraints.reinit(locally_relevant_dofs);
-    DoFTools::make_hanging_node_constraints(dof_handler, nonzero_NS_constraints);      //Necessary when work with not homogeneous refinment 
+    DoFTools::make_hanging_node_constraints(dof_handler, nonzero_NS_constraints);      //Necessary when work with not homogeneous meshes (mesh non conformi) since in this cases we have the presence of hanging nodes. We have to impose constraints also on these.
     DoFTools::make_hanging_node_constraints(dof_handler, zero_NS_constraints);
 
     // Apply Dirichlet boundary conditions on all boundaries except for the
     // outlet.
-    std::vector<unsigned int> dirichlet_bc_ids;                        //To change it                           
-
-    dirichlet_bc_ids = std::vector<unsigned int>{1, 2, 3};                
     
-    FEValuesExtractors::Vector velocities(0);
+    const FEValuesExtractors::Vector velocities(0);
+    const FEValuesExtractors::Scalar vertical_velocity(1);
+    const FEValuesExtractors::Vector vertical_velocity_and_pressure(1);
 
-    //Nonzero_NS_constraints
+    //Nonzero_NS_constraints (Now is a zero constraint, possiamo cambiarla passando una function del tipo BoundaryValues)
     VectorTools::interpolate_boundary_values(dof_handler,                           //Assign B.C. different from zero in nonzero_constraints
                                             0,
                                             Functions::ZeroFunction<dim>(dim+1),    //For each degree of freedom at the boundary, its boundary value will be overwritten if its index already exists in boundary_values. Otherwise, a new entry with proper index and boundary value for this degree of freedom will be inserted into boundary_values.
@@ -199,8 +198,8 @@ void InsIMEX<dim>::make_constraints()
                                             NS_fe.component_mask(vertical_velocity_and_pressure));
                                              
 
-    nonzero_constraints.close();         //After closing, no more entries are accepted
-    zero_constraints.close();
+    nonzero_NS_constraints.close();         //After closing, no more entries are accepted
+    zero_NS_constraints.close();
 }
 
 
@@ -214,14 +213,14 @@ void InsIMEX<dim>::initialize_system()
     mass_matrix.clear();
     mass_schur.clear();
 
-    BlockDynamicSparsityPattern dsp(dofs_per_block, dofs_per_block);            //This class implements an array of compressed sparsity patterns that can be used to initialize objects of type BlockSparsityPattern.
-    DoFTools::make_sparsity_pattern(dof_handler, dsp, nonzero_constraints);     //Assign to dsp the sparsity pattern using the locality of fe basis functions
+    BlockDynamicSparsityPattern dsp(dofs_per_block, dofs_per_block);            //This class implements an array of compressed sparsity patterns (one for velocity and one for pressure in our case) that can be used to initialize objects of type BlockSparsityPattern.
+    DoFTools::make_sparsity_pattern(dof_handler, dsp, nonzero_NS_constraints);     //Compute which entries of a matrix built on the given dof_handler may possibly be nonzero, and create a sparsity pattern (assigning it to dsp) object that represents these nonzero locations.
     sparsity_pattern.copy_from(dsp);                                            //Copy data from an object of type BlockDynamicSparsityPattern
-    SparsityTools::distribute_sparsity_pattern(             //Communicate rows in a dynamic sparsity pattern over MPI.
-    dsp,
-    dof_handler.locally_owned_dofs(),                     //An IndexSet describing the rows owned by the calling MPI process. 
-    mpi_communicator,
-    locally_relevant_dofs);
+    SparsityTools::distribute_sparsity_pattern(                    //Communicate rows in a dynamic sparsity pattern over MPI.
+        dsp,                                                       //A dynamic sparsity pattern that has been built locally and for which we need to exchange entries with other processors to make sure that each processor knows all the elements of the rows of a matrix it stores and that may eventually be written to. This sparsity pattern will be changed as a result of this function: All entries in rows that belong to a different processor are sent to them and added there.
+        dof_handler.locally_owned_dofs(),                          //An IndexSet describing the rows owned by the calling MPI process. 
+        mpi_communicator,
+        locally_relevant_dofs);                                    //The range of elements stored on the local MPI process. Only rows contained in this set are checked in dsp for transfer
 
     system_matrix.reinit(owned_partitioning, dsp, mpi_communicator);         //Efficiently reinit the block matrix for a parallel computation
     mass_matrix.reinit(owned_partitioning, dsp, mpi_communicator);
@@ -230,19 +229,15 @@ void InsIMEX<dim>::initialize_system()
     // Compute the sparsity pattern for mass schur in advance.
     // The only nonzero block has the same sparsity pattern as $BB^T$.
     BlockDynamicSparsityPattern schur_dsp(dofs_per_block, dofs_per_block);
-    schur_dsp.block(1, 1).compute_mmult_pattern(sparsity_pattern.block(1, 0),
-                                                sparsity_pattern.block(0, 1));
-    mass_schur.reinit(owned_partitioning, schur_dsp, mpi_communicator);
+    schur_dsp.block(1, 1).compute_mmult_pattern(sparsity_pattern.block(1, 0), sparsity_pattern.block(0, 1));
+    mass_schur.reinit(owned_partitioning, schur_dsp, mpi_communicator);       //We want to reinitialize our matrix with new partitions of data
 
-    // present_solution is ghosted because it is used in the
-    // output and mesh refinement functions.
-    present_solution.reinit(
-    owned_partitioning, relevant_partitioning, mpi_communicator);
-    // solution_increment is non-ghosted because the linear solver needs
-    // a completely distributed vector.
-    solution_increment.reinit(owned_partitioning, mpi_communicator);
-    // system_rhs is non-ghosted because it is only used in the linear
-    // solver and residual evaluation.
+    // present_solution is ghosted because it is used in the output and mesh refinement functions.
+    // Un vettore ghosted è un vettore che contiene dati locali nella partizione di memoria di un processo MPI, ma include anche una zona "spettrale" (ghost zone) che contiene porzioni dei dati che appartengono a altri processi. Questo è utile perché consente agli algoritmi di comunicare le informazioni necessarie tra i processi MPI senza richiedere una comunicazione esplicita.
+    present_solution.reinit(owned_partitioning, relevant_partitioning, mpi_communicator);      
+    // solution_increment is non-ghosted (so doesn't contain info of "ghost zone") because the linear solver needs a completely distributed vector.
+    solution_increment.reinit(owned_partitioning, mpi_communicator);   
+    // system_rhs is non-ghosted because it is only used in the linear solver and residual evaluation.
     system_rhs.reinit(owned_partitioning, mpi_communicator);
 }
 
@@ -271,8 +266,8 @@ void InsIMEX<dim>::assemble(bool use_nonzero_constraints,
     }
     system_rhs = 0;
 
-    FEValues<dim> fe_values(fe,                              //It implicitely uses a Q1 mapping
-                            volume_quad_formula,
+    FEValues<dim> fe_values(fe,                              //FEValues contains finite element evaluated in quadrature points of a cell.                            
+                            volume_quad_formula,             //It implicitely uses a Q1 mapping
                             update_values | update_quadrature_points |
                             update_JxW_values | update_gradients);
     FEFaceValues<dim> fe_face_values(fe,
@@ -284,8 +279,8 @@ void InsIMEX<dim>::assemble(bool use_nonzero_constraints,
     const unsigned int dofs_per_cell = fe.dofs_per_cell;
     const unsigned int n_q_points = volume_quad_formula.size();
 
-    const FEValuesExtractors::Vector velocities(0);
-    const FEValuesExtractors::Scalar pressure(dim);
+    const FEValuesExtractors::Vector velocities(0);   //Extractor calls velocities that takes the vector in position 0
+    const FEValuesExtractors::Scalar pressure(dim);   //Extractor calls pressure that takes the scalar in position dim
 
     FullMatrix<double> local_matrix(dofs_per_cell, dofs_per_cell);
     FullMatrix<double> local_mass_matrix(dofs_per_cell, dofs_per_cell);
@@ -293,7 +288,7 @@ void InsIMEX<dim>::assemble(bool use_nonzero_constraints,
 
     std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
 
-    std::vector<Tensor<1, dim>> current_velocity_values(n_q_points);                 //Wht stored in vector of Tensors?
+    std::vector<Tensor<1, dim>> current_velocity_values(n_q_points);     //vector of values of velocity in quadrature points              
     std::vector<Tensor<2, dim>> current_velocity_gradients(n_q_points);
     std::vector<double> current_velocity_divergences(n_q_points);
     std::vector<double> current_pressure_values(n_q_points);
@@ -303,12 +298,11 @@ void InsIMEX<dim>::assemble(bool use_nonzero_constraints,
     std::vector<Tensor<2, dim>> grad_phi_u(dofs_per_cell);
     std::vector<double> phi_p(dofs_per_cell);
 
-    for (auto cell = dof_handler.begin_active(); cell != dof_handler.end();      //Iterator from the first active cell to the last one
-        ++cell)
+    for (auto cell = dof_handler.begin_active(); cell != dof_handler.end(); ++cell)     //Iterator from the first active cell to the last one
     {
         if (cell->is_locally_owned())
         {
-            fe_values.reinit(cell);
+            fe_values.reinit(cell);    //Reinitialize the gradients, Jacobi determinants, etc for the given cell of type "iterator into a Triangulation object", and the given finite element.
 
             if (assemble_system)
             {
@@ -321,10 +315,10 @@ void InsIMEX<dim>::assemble(bool use_nonzero_constraints,
                                                     current_velocity_values);     //in current_velocity_values i stored values of present_solution in quadrature points
 
             fe_values[velocities].get_function_gradients(
-            present_solution, current_velocity_gradients);
+                            present_solution, current_velocity_gradients);
 
             fe_values[velocities].get_function_divergences(
-            present_solution, current_velocity_divergences);
+                            present_solution, current_velocity_divergences);
 
             fe_values[pressure].get_function_values(present_solution,
                                                     current_pressure_values);
@@ -335,7 +329,7 @@ void InsIMEX<dim>::assemble(bool use_nonzero_constraints,
             {
                 for (unsigned int k = 0; k < dofs_per_cell; ++k)
                 {
-                    div_phi_u[k] = fe_values[velocities].divergence(k, q);           //I assign the values in the dofs of the cell
+                    div_phi_u[k] = fe_values[velocities].divergence(k, q);           //Returns the value of the k-th shape function in q quadrature point
                     grad_phi_u[k] = fe_values[velocities].gradient(k, q);
                     phi_u[k] = fe_values[velocities].value(k, q);
                     phi_p[k] = fe_values[pressure].value(k, q);
@@ -375,7 +369,7 @@ void InsIMEX<dim>::assemble(bool use_nonzero_constraints,
             cell->get_dof_indices(local_dof_indices);
 
             const AffineConstraints<double> &constraints_used =
-            use_nonzero_constraints ? nonzero_constraints : zero_constraints;
+            use_nonzero_constraints ? nonzero_NS_constraints : zero_NS_constraints;
             if (assemble_system)
             {
                 constraints_used.distribute_local_to_global(local_matrix,             //In practice this function implements a scatter operation
@@ -439,7 +433,7 @@ InsIMEX<dim>::solve(bool use_nonzero_constraints, bool assemble_system)
     gmres.solve(system_matrix, solution_increment, system_rhs, *preconditioner);
 
     const AffineConstraints<double> &constraints_used =
-    use_nonzero_constraints ? nonzero_constraints : zero_constraints;
+    use_nonzero_constraints ? nonzero_NS_constraints : zero_NS_constraints;
     constraints_used.distribute(solution_increment);
 
     return {solver_control.last_step(), solver_control.last_value()};
@@ -476,7 +470,7 @@ void InsIMEX<dim>::run()
             << ", at t = " << std::scientific << time.current() << std::endl;
         // Resetting
         solution_increment = 0;
-        // Only use nonzero constraints at the very first time step
+        // Only use nonzero constraints at the very first time step (COsì i valori nei constraints non vengono modificati)
         bool apply_nonzero_constraints = (time.get_timestep() == 1);
         // We have to assemble the LHS for the initial two time steps:
         // once using nonzero_constraints, once using zero_constraints,
