@@ -266,8 +266,8 @@ void InsIMEX<dim>::assemble(bool use_nonzero_constraints,
     }
     system_rhs = 0;
 
-    FEValues<dim> fe_values(fe,                              //It implicitely uses a Q1 mapping
-                            volume_quad_formula,
+    FEValues<dim> fe_values(fe,                              //FEValues contains finite element evaluated in quadrature points of a cell.                            
+                            volume_quad_formula,             //It implicitely uses a Q1 mapping
                             update_values | update_quadrature_points |
                             update_JxW_values | update_gradients);
     FEFaceValues<dim> fe_face_values(fe,
@@ -279,8 +279,8 @@ void InsIMEX<dim>::assemble(bool use_nonzero_constraints,
     const unsigned int dofs_per_cell = fe.dofs_per_cell;
     const unsigned int n_q_points = volume_quad_formula.size();
 
-    const FEValuesExtractors::Vector velocities(0);
-    const FEValuesExtractors::Scalar pressure(dim);
+    const FEValuesExtractors::Vector velocities(0);   //Extractor calls velocities that takes the vector in position 0
+    const FEValuesExtractors::Scalar pressure(dim);   //Extractor calls pressure that takes the scalar in position dim
 
     FullMatrix<double> local_matrix(dofs_per_cell, dofs_per_cell);
     FullMatrix<double> local_mass_matrix(dofs_per_cell, dofs_per_cell);
@@ -288,7 +288,7 @@ void InsIMEX<dim>::assemble(bool use_nonzero_constraints,
 
     std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
 
-    std::vector<Tensor<1, dim>> current_velocity_values(n_q_points);                 //Why stored in vector of Tensors?
+    std::vector<Tensor<1, dim>> current_velocity_values(n_q_points);     //vector of values of velocity in quadrature points              
     std::vector<Tensor<2, dim>> current_velocity_gradients(n_q_points);
     std::vector<double> current_velocity_divergences(n_q_points);
     std::vector<double> current_pressure_values(n_q_points);
@@ -298,12 +298,11 @@ void InsIMEX<dim>::assemble(bool use_nonzero_constraints,
     std::vector<Tensor<2, dim>> grad_phi_u(dofs_per_cell);
     std::vector<double> phi_p(dofs_per_cell);
 
-    for (auto cell = dof_handler.begin_active(); cell != dof_handler.end();      //Iterator from the first active cell to the last one
-        ++cell)
+    for (auto cell = dof_handler.begin_active(); cell != dof_handler.end(); ++cell)     //Iterator from the first active cell to the last one
     {
         if (cell->is_locally_owned())
         {
-            fe_values.reinit(cell);
+            fe_values.reinit(cell);    //Reinitialize the gradients, Jacobi determinants, etc for the given cell of type "iterator into a Triangulation object", and the given finite element.
 
             if (assemble_system)
             {
@@ -316,10 +315,10 @@ void InsIMEX<dim>::assemble(bool use_nonzero_constraints,
                                                     current_velocity_values);     //in current_velocity_values i stored values of present_solution in quadrature points
 
             fe_values[velocities].get_function_gradients(
-            present_solution, current_velocity_gradients);
+                            present_solution, current_velocity_gradients);
 
             fe_values[velocities].get_function_divergences(
-            present_solution, current_velocity_divergences);
+                            present_solution, current_velocity_divergences);
 
             fe_values[pressure].get_function_values(present_solution,
                                                     current_pressure_values);
@@ -330,7 +329,7 @@ void InsIMEX<dim>::assemble(bool use_nonzero_constraints,
             {
                 for (unsigned int k = 0; k < dofs_per_cell; ++k)
                 {
-                    div_phi_u[k] = fe_values[velocities].divergence(k, q);           //I assign the values in the dofs of the cell
+                    div_phi_u[k] = fe_values[velocities].divergence(k, q);           //Returns the value of the k-th shape function in q quadrature point
                     grad_phi_u[k] = fe_values[velocities].gradient(k, q);
                     phi_u[k] = fe_values[velocities].value(k, q);
                     phi_p[k] = fe_values[pressure].value(k, q);
@@ -370,7 +369,7 @@ void InsIMEX<dim>::assemble(bool use_nonzero_constraints,
             cell->get_dof_indices(local_dof_indices);
 
             const AffineConstraints<double> &constraints_used =
-            use_nonzero_constraints ? nonzero__NS_constraints : zero_NS_constraints;
+            use_nonzero_constraints ? nonzero_NS_constraints : zero_NS_constraints;
             if (assemble_system)
             {
                 constraints_used.distribute_local_to_global(local_matrix,             //In practice this function implements a scatter operation
@@ -471,7 +470,7 @@ void InsIMEX<dim>::run()
             << ", at t = " << std::scientific << time.current() << std::endl;
         // Resetting
         solution_increment = 0;
-        // Only use nonzero constraints at the very first time step
+        // Only use nonzero constraints at the very first time step (COsì i valori nei constraints non vengono modificati)
         bool apply_nonzero_constraints = (time.get_timestep() == 1);
         // We have to assemble the LHS for the initial two time steps:
         // once using nonzero_constraints, once using zero_constraints,
