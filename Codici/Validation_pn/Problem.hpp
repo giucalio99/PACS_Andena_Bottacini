@@ -1,6 +1,9 @@
 #ifndef PROBLEM.HPP
 #define PROBLEM.HPP
 
+#include <deal.II/lac/vector.h>  // to use Vector template from deal ii
+#include "Electrical_Values.hpp" // to use the override template functions and the constants
+
 // Template class Problem 
 template <int dim>
 class Problem
@@ -14,6 +17,7 @@ public:
   void run();
 
 private:
+
   void create_mesh();
 
   void setup_poisson();
