@@ -221,12 +221,54 @@ void Build_Geometry::write_head(std::ofstream & ofs) const{
 
    ofs << "// ===========================================" <<std::endl;
    ofs << "// ==================================MESH FILE" <<std::endl;
-   ofs << "// ===========================================" <<std::endl;
+   ofs << "// ===========================================" <<std::endl<<std::endl;
 
    return;
 
 }
+//--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+//this method writes in the out file the parameters that describe the problem. NB: it does NOT write ALL the parameters
+// but only those who dont need the recompiling procedure of all the code that generate the .geo
 
+void Build_Geometry::write_parameters(std::ofstream & ofs) const{
+
+   ofs << "//PARAMETERS"<<std::endl<<std::endl;
+
+   ofs << "// you are working with a "<< this->my_data.airfoil_type <<" airfoil"<<std::endl<<std::endl;
+
+   ofs << "// -- Emitter Geometry --" <<std::endl;
+   ofs << "radius_emitter = "<< this->my_data.radius_emitter <<";      // [m] radius of the circular emitter"<<std::endl<<std::endl;
+
+   ofs << "// -- Distances --"<<std::endl;
+   ofs << "distance_emitter_collector = "<<this->my_data.distance_emitter_collector<<";     // [m] distance between the emitter and the airfoil collector"<<std::endl;
+   ofs << "distance_Tedge_outlet = "<<this->my_data.distance_Tedge_outlet<<";     // [m] distance between the trailing edge of the airfoil and the outlet"<<std::endl;
+   ofs << "distance_emitter_inlet = "<<this->my_data.distance_emitter_inlet<<";     // [m] distance between the circular emitter and the inlet"<<std::endl;
+   ofs << "distance_emitter_up_bottom = "<<this->my_data.distance_emitter_inlet<<";     // [m] distance between the edge of the emitter and the upper/bottom part of the domain"<<std::endl<<std::endl;
+
+   ofs << "// -- Mesh Refinement --"<<std::endl;
+   ofs << "mesh_ref_1 = " << this->my_data.mesh_ref_1 << ";     // very corse value of the mesh refinement" <<std::endl;
+   ofs << "mesh_ref_2 = " << this->my_data.mesh_ref_2 << ";     // corse value of the mesh refinement" <<std::endl;
+   ofs << "mesh_ref_3 = " << this->my_data.mesh_ref_3 << ";     // fine value of the mesh refinement" <<std::endl;
+   ofs << "mesh_ref_4 = " << this->my_data.mesh_ref_4 << ";     // very fine of the mesh refinement" <<std::endl<<std::endl;
+
+   ofs << "// -- Fields Parameters --"<<std::endl;
+   ofs << "cylinder_emitter_radius = "<<this->my_data.cylinder_emitter_radius<<"; //     [m] length of the radius of the circonference centered in the emitter that define a finer mesh region"<<std::endl;
+   ofs << "box_profile_semi_minor_axis = "<<this->my_data.box_profile_semi_minor_axis<<"; //     [m] half length of the minor edge of the box that describe a finer mesh region around the airfoil"<<std::endl;
+   ofs << "box_profile_semi_major_axis = "<<this->my_data.box_profile_semi_major_axis<<"; //     [m] half length of the major edge of the box that describe a finer mesh region around the airfoil"<<std::endl;
+   ofs << "BL_ratio = "<<this->my_data.BL_ratio<<"; //     ratio between two successive layers of BL"<<std::endl;
+   ofs << "BL_size = "<<this->my_data.BL_size<<"; //     mesh size normal to the curve"<<std::endl;
+   ofs << "BL_thickness = "<<this->my_data.BL_thickness<<"; //     maximal thickness of the boundary layer"<<std::endl;
+   ofs << "BL_fanPoints = "<<this->my_data.BL_fanPoints<<"; //     stores the number of elements in the fan for each fan point(one for us)"<<std::endl<<std::endl;
+
+   ofs << "// -- Algorithm --"<<std::endl;
+   ofs << "Mesh.RecombineAll=1;     //algorithm used to compute the mesh (see gmsh documentation)"<<std::endl; 
+   ofs << "Mesh.RecombinationAlgorithm=1;    //command to generate quads instead of trianguls"<<std::endl<<std::endl;
+
+   return;           
+
+
+
+}
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 //this method writes in the output file the Points and the lines that compose the airfoil profile
 //in order to generate an useful .geo file we exploit the sintax of gmsh
@@ -239,7 +281,7 @@ void Build_Geometry::write_profile(std::ofstream & ofs) const{
 
     //we start with a comment in order to have a more readable .geo file
     ofs << std::endl;
-    ofs << "//AIRFOIL GEOMETRY"<<std::endl;
+    ofs << "//AIRFOIL POINTS"<<std::endl;
     
 
     //we then write all the points with the following sintax
@@ -277,7 +319,7 @@ void Build_Geometry::write_emitter(std::ofstream & ofs) const{
 
     //comment for the readability of the .geo file
     ofs <<std::endl;
-    ofs << "//EMITTER GEOMETRY"<<std::endl;
+    ofs << "//EMITTER POINTS"<<std::endl;
     
     //write the Points in the output file
     for(size_t i = 0; i<emitter_points.size(); ++i){
@@ -308,7 +350,7 @@ void Build_Geometry::write_domain(std::ofstream & ofs) const{
 
     //comment for the .geo file
     ofs <<std::endl;
-    ofs << "//RECTANGULAR DOMAIN"<<std::endl;
+    ofs << "//RECTANGULAR DOMAIN POINTS"<<std::endl;
 
     //we write all the points
     for(size_t i = 0; i<domain_points.size(); ++i){
@@ -470,15 +512,3 @@ void Build_Geometry::write_min_field(std::ofstream & ofs) const{
     return;
 }
 
-//--------------------------------------------------------------------------------------------------------------------------------------------------------------
-//this method wriets in the output file the algorithm characteristics
-void Build_Geometry::write_algorithm(std::ofstream & ofs) const{
-
-    ofs << std::endl;
-    ofs << "//ALGORITHMS"<<std::endl;
-
-    ofs << "Mesh.RecombineAll=1;"<<std::endl;                      //algorithm used to compute the mesh (see gmsh documentation)
-    ofs << "Mesh.RecombinationAlgorithm=1;"<<std::endl;            //command to generate quads instead of trianguls
-
-    return;
-}

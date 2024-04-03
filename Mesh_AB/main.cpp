@@ -77,6 +77,7 @@ Build_Geometry my_geometry(s_data);
 // Write data to the file exploiting the methods of the Build_Geometry object
 
 my_geometry.write_head(outFile);
+my_geometry.write_parameters(outFile);
 my_geometry.write_profile(outFile);
 my_geometry.write_emitter(outFile);
 my_geometry.write_domain(outFile);
@@ -87,7 +88,6 @@ my_geometry.write_boundary_layer(outFile);
 my_geometry.write_emitter_cylinder(outFile);
 my_geometry.write_profile_box(outFile);
 my_geometry.write_min_field(outFile);
-my_geometry.write_algorithm(outFile);
 
 
 // Close the file

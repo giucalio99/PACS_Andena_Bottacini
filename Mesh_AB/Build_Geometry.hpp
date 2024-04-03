@@ -27,6 +27,7 @@ class Build_Geometry{
      
      //METHODS TO WRITE IN THE OUTPUT FILE
      void write_head(std::ofstream & ofs) const;               //this method writes in the output file the head of the .geo file
+     void write_parameters(std::ofstream & ofs) const;         //this method writes in the output file the parameters that define the problem with a brief description
      void write_profile(std::ofstream & ofs) const;            //this method writes in the output file the points that compose the airfoil and the emitter
      void write_emitter(std::ofstream & ofs) const;            //this method writes in the output file the points that compose the emitter geometry
      void write_domain(std::ofstream & ofs) const;             //this method writes in the output file the points that compose the rectangular domain 
@@ -37,7 +38,7 @@ class Build_Geometry{
      void write_emitter_cylinder(std::ofstream & ofs) const;   //this method wriets in the output file the field that define the cylinder around the emitter
      void write_profile_box(std::ofstream & ofs) const;        //this method writes in the output file the field taht define the box around the airfoil
      void write_min_field(std::ofstream & ofs) const;          //this method wriets in the output file the min field
-     void write_algorithm(std::ofstream & ofs) const;          //this method writes in the output file the meshing algorithm and the algorithm characteristics
+     
 
 };
 
