@@ -99,8 +99,8 @@
     QGauss<dim> volume_quad_formula;
     QGauss<dim - 1> face_quad_formula;
 
-    AffineConstraints<double> zero_constraints;              //Each "line" in objects of this class corresponds to one constrained degree of freedom
-    AffineConstraints<double> nonzero_constraints;
+    AffineConstraints<double> zero_NS_constraints;              //Each "line" in objects of this class corresponds to one constrained degree of freedom
+    AffineConstraints<double> nonzero_NS_constraints;
 
     BlockSparsityPattern sparsity_pattern;
     
