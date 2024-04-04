@@ -128,20 +128,22 @@ std::vector<Point> Build_Geometry::compute_profile() const{
 
     for(size_t i = 0; i<this->my_data.NACA_points; ++i){
 
-        Point temp( x_coord[i] ,  up_coord[i] ,0.0, this->my_data.mesh_ref_1*weights[i]);    //NB we multiply the mesh_ref with the weights in order to achive different refineemnt along the profile
+        Point temp( x_coord[i] ,  up_coord[i] ,0.0, weights[i]);    
         Points.push_back(temp);
 
     }
 
     for(size_t i = this->my_data.NACA_points -2; i>0; --i){
 
-        Point temp( x_coord[i] , low_coord[i] ,0.0, this->my_data.mesh_ref_1*weights[i]);
+        Point temp( x_coord[i] , low_coord[i] ,0.0, weights[i]);
         Points.push_back(temp);
 
     }
 
     return Points;
-
+    //NB: at the end of this function we link characterize the points that define the airprofile with ONLY the different weights !!
+    //when we print them we multiply them with the correct mesh_ref (see write_profile function), so there is a little abuse of name when in
+    //write_profile function we exploit the getter "get_mesh_refinement"
 }
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // This method compute the 5 points that are used to define a circular arc in gmsh enviroment
@@ -151,7 +153,7 @@ std::vector<Point> Build_Geometry::compute_emitter() const{
     //we just need 5 points in order to create the emitter geometry
     std::vector<Point> Points;
     Points.reserve(5);
-    
+
     //retrive some useful data
     double r = this->my_data.radius_emitter;
     double d = this->my_data.distance_emitter_collector;
@@ -227,7 +229,7 @@ void Build_Geometry::write_head(std::ofstream & ofs) const{
 
 }
 //--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-//this method writes in the out file the parameters that describe the problem. NB: it does NOT write ALL the parameters
+// this method writes in the out file the parameters that describe the problem. NB: it does NOT write ALL the parameters
 // but only those who dont need the recompiling procedure of all the code that generate the .geo
 
 void Build_Geometry::write_parameters(std::ofstream & ofs) const{
@@ -236,14 +238,15 @@ void Build_Geometry::write_parameters(std::ofstream & ofs) const{
 
    ofs << "// you are working with a "<< this->my_data.airfoil_type <<" airfoil"<<std::endl<<std::endl;
 
-   ofs << "// -- Emitter Geometry --" <<std::endl;
-   ofs << "radius_emitter = "<< this->my_data.radius_emitter <<";      // [m] radius of the circular emitter"<<std::endl<<std::endl;
+   ofs << "// -- Emitter Collector Geometry --" <<std::endl;
+   ofs << "radius_emitter = "<< this->my_data.radius_emitter <<";      // [m] radius of the circular emitter"<<std::endl;
+   ofs << "chord_length = "<< this->my_data.chord_length <<";      // [m] length of the chord"<<std::endl<<std::endl;
 
    ofs << "// -- Distances --"<<std::endl;
    ofs << "distance_emitter_collector = "<<this->my_data.distance_emitter_collector<<";     // [m] distance between the emitter and the airfoil collector"<<std::endl;
    ofs << "distance_Tedge_outlet = "<<this->my_data.distance_Tedge_outlet<<";     // [m] distance between the trailing edge of the airfoil and the outlet"<<std::endl;
    ofs << "distance_emitter_inlet = "<<this->my_data.distance_emitter_inlet<<";     // [m] distance between the circular emitter and the inlet"<<std::endl;
-   ofs << "distance_emitter_up_bottom = "<<this->my_data.distance_emitter_inlet<<";     // [m] distance between the edge of the emitter and the upper/bottom part of the domain"<<std::endl<<std::endl;
+   ofs << "distance_emitter_up_bottom = "<<this->my_data.distance_emitter_up_bottom<<";     // [m] distance between the edge of the emitter and the upper/bottom part of the domain"<<std::endl<<std::endl;
 
    ofs << "// -- Mesh Refinement --"<<std::endl;
    ofs << "mesh_ref_1 = " << this->my_data.mesh_ref_1 << ";     // very corse value of the mesh refinement" <<std::endl;
@@ -255,18 +258,16 @@ void Build_Geometry::write_parameters(std::ofstream & ofs) const{
    ofs << "cylinder_emitter_radius = "<<this->my_data.cylinder_emitter_radius<<"; //     [m] length of the radius of the circonference centered in the emitter that define a finer mesh region"<<std::endl;
    ofs << "box_profile_semi_minor_axis = "<<this->my_data.box_profile_semi_minor_axis<<"; //     [m] half length of the minor edge of the box that describe a finer mesh region around the airfoil"<<std::endl;
    ofs << "box_profile_semi_major_axis = "<<this->my_data.box_profile_semi_major_axis<<"; //     [m] half length of the major edge of the box that describe a finer mesh region around the airfoil"<<std::endl;
-   ofs << "BL_ratio = "<<this->my_data.BL_ratio<<"; //     ratio between two successive layers of BL"<<std::endl;
-   ofs << "BL_size = "<<this->my_data.BL_size<<"; //     mesh size normal to the curve"<<std::endl;
-   ofs << "BL_thickness = "<<this->my_data.BL_thickness<<"; //     maximal thickness of the boundary layer"<<std::endl;
-   ofs << "BL_fanPoints = "<<this->my_data.BL_fanPoints<<"; //     stores the number of elements in the fan for each fan point(one for us)"<<std::endl<<std::endl;
+   ofs << "BL_ratio = "<<this->my_data.BL_ratio<<";      //ratio between two successive layers of BL"<<std::endl;
+   ofs << "BL_size = "<<this->my_data.BL_size<<";     //mesh size normal to the curve"<<std::endl;
+   ofs << "BL_thickness = "<<this->my_data.BL_thickness<<";     //maximal thickness of the boundary layer"<<std::endl;
+   ofs << "BL_fanPoints = "<<this->my_data.BL_fanPoints<<";     //stores the number of elements in the fan for each fan point(one for us)"<<std::endl<<std::endl;
 
    ofs << "// -- Algorithm --"<<std::endl;
    ofs << "Mesh.RecombineAll=1;     //algorithm used to compute the mesh (see gmsh documentation)"<<std::endl; 
    ofs << "Mesh.RecombinationAlgorithm=1;    //command to generate quads instead of trianguls"<<std::endl<<std::endl;
 
    return;           
-
-
 
 }
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -276,18 +277,18 @@ void Build_Geometry::write_parameters(std::ofstream & ofs) const{
 void Build_Geometry::write_profile(std::ofstream & ofs) const{
     
     //first we retrive the points that we need
-    std::vector<Point> airfoil_points = this->compute_profile();
-    
+    std::vector<Point> airfoil_points = this->compute_profile();    
 
     //we start with a comment in order to have a more readable .geo file
     ofs << std::endl;
     ofs << "//AIRFOIL POINTS"<<std::endl;
     
 
-    //we then write all the points with the following sintax
+    //we then write all the points with the following sintax (remeber that in the get_local_mesh you retrive only the weigths, you 
+    //have to multiply by the mesh refinement that you want)
     for(size_t i = 0; i<airfoil_points.size(); ++i){
         
-        ofs << "Point("<<airfoil_points[i].get_tag()<<") = {"<<airfoil_points[i].get_x()<<", "<<airfoil_points[i].get_y()<<", "<<airfoil_points[i].get_z()<<", "<<airfoil_points[i].get_local_mesh_ref()<<"};"<<std::endl;
+        ofs << "Point("<<airfoil_points[i].get_tag()<<") = {"<<airfoil_points[i].get_x()<<", "<<airfoil_points[i].get_y()<<", "<<airfoil_points[i].get_z()<<", "<<airfoil_points[i].get_local_mesh_ref()<<"*mesh_ref_1};"<<std::endl;
 
     }
     
@@ -322,11 +323,17 @@ void Build_Geometry::write_emitter(std::ofstream & ofs) const{
     ofs << "//EMITTER POINTS"<<std::endl;
     
     //write the Points in the output file
-    for(size_t i = 0; i<emitter_points.size(); ++i){
+    /*for(size_t i = 0; i<emitter_points.size(); ++i){
         
         ofs << "Point("<<emitter_points[i].get_tag()<<") = {"<<emitter_points[i].get_x()<<", "<<emitter_points[i].get_y()<<", "<<emitter_points[i].get_z()<<", "<<emitter_points[i].get_local_mesh_ref()<<"};"<<std::endl;
 
-    }
+    }*/
+
+    ofs << "Point("<<emitter_points[0].get_tag()<<") = {-distance_emitter_collector -radius_emitter , 0.0, 0.0, mesh_ref_1 };"<<std::endl;
+    ofs << "Point("<<emitter_points[1].get_tag()<<") = {-distance_emitter_collector , 0.0, 0.0, mesh_ref_1 };"<<std::endl;
+    ofs << "Point("<<emitter_points[2].get_tag()<<") = {-distance_emitter_collector -radius_emitter , radius_emitter, 0.0, mesh_ref_1 };"<<std::endl;
+    ofs << "Point("<<emitter_points[3].get_tag()<<") = {-distance_emitter_collector -2*radius_emitter , 0.0, 0.0, mesh_ref_1 };"<<std::endl;
+    ofs << "Point("<<emitter_points[4].get_tag()<<") = {-distance_emitter_collector -radius_emitter , -radius_emitter, 0.0, mesh_ref_1 };"<<std::endl;
 
     //now we write the istructions to build a circunference exploiting gmsh commands
     // we write by hands the tags of the lines
@@ -353,11 +360,18 @@ void Build_Geometry::write_domain(std::ofstream & ofs) const{
     ofs << "//RECTANGULAR DOMAIN POINTS"<<std::endl;
 
     //we write all the points
+    /*
     for(size_t i = 0; i<domain_points.size(); ++i){
         
         ofs << "Point("<<domain_points[i].get_tag()<<") = {"<<domain_points[i].get_x()<<", "<<domain_points[i].get_y()<<", "<<domain_points[i].get_z()<<", "<<domain_points[i].get_local_mesh_ref()<<"};"<<std::endl;
 
-    }
+    }*/
+
+    ofs << "Point("<<domain_points[0].get_tag()<<") = {-distance_emitter_collector -2*radius_emitter -distance_emitter_inlet, radius_emitter + distance_emitter_up_bottom, 0.0, mesh_ref_1 };"<<std::endl;
+    ofs << "Point("<<domain_points[1].get_tag()<<") = {-distance_emitter_collector -2*radius_emitter -distance_emitter_inlet, -radius_emitter - distance_emitter_up_bottom, 0.0, mesh_ref_1 };"<<std::endl;
+    ofs << "Point("<<domain_points[2].get_tag()<<") = {chord_length + distance_Tedge_outlet, -radius_emitter - distance_emitter_up_bottom, 0.0, mesh_ref_1 };"<<std::endl;
+    ofs << "Point("<<domain_points[3].get_tag()<<") = {chord_length + distance_Tedge_outlet, radius_emitter + distance_emitter_up_bottom, 0.0, mesh_ref_1 };"<<std::endl;
+
     
     //and then the lines
     ofs << std::endl;
@@ -432,14 +446,14 @@ void Build_Geometry::write_boundary_layer(std::ofstream & ofs) const{
     ofs << std::endl;
     ofs << "//BOUNDARY LAYER"<<std::endl;
 
-    ofs << "Field[1]=BoundaryLayer;"<<std::endl;                                           //Type of gmsh field
-    ofs << "Field[1].CurvesList={1,2,3,4};"<<std::endl;                                    //Tags of curves in the geometric model for which a boundary layer is needed
-    ofs << "Field[1].Quads=1;"<<std::endl;                                                 //Generate recombined elements in the boundary layer
-    ofs << "Field[1].Ratio="<<my_data.BL_ratio<<";"<<std::endl;                            //Size ratio between two successive layers
-    ofs << "Field[1].Size="<< my_data.BL_size<< ";"<<std::endl;                            //Mesh size normal to the curve
-    ofs << "Field[1].Thickness=" << my_data.BL_thickness<<";"<<std::endl;                  //Maximal thickness of the boundary layer
+    ofs << "Field[1] = BoundaryLayer;"<<std::endl;                                         //Type of gmsh field
+    ofs << "Field[1].CurvesList = {1,2,3,4};"<<std::endl;                                  //Tags of curves in the geometric model for which a boundary layer is needed
+    ofs << "Field[1].Quads = 1;"<<std::endl;                                               //Generate recombined elements in the boundary layer
+    ofs << "Field[1].Ratio = BL_ratio;"<<std::endl;                                        //Size ratio between two successive layers
+    ofs << "Field[1].Size = BL_size;"<<std::endl;                                          //Mesh size normal to the curve
+    ofs << "Field[1].Thickness = BL_thickness;"<<std::endl;                                //Maximal thickness of the boundary layer
     ofs << "Field[1].FanPointsList={"<<my_data.NACA_points<<"};"<<std::endl;               //Tags of points in the geometric model for which a fan is created
-    ofs << "Field[1].FanPointsSizesList={"<< my_data.BL_fanPoints<< "};"<<std::endl;       //Number of elements in the fan for each fan point. If not present default value Mesh.BoundaryLayerFanElements
+    ofs << "Field[1].FanPointsSizesList = {BL_fanPoints};"<<std::endl;                     //Number of elements in the fan for each fan point. If not present default value Mesh.BoundaryLayerFanElements
     ofs << "BoundaryLayer Field = 1;"<<std::endl;
 
     return;
@@ -452,19 +466,13 @@ void Build_Geometry::write_emitter_cylinder(std::ofstream & ofs) const{
     ofs << std::endl;
     ofs << "//CYLINDER"<<std::endl;
 
-    //retrive some data
-    double dist = this->my_data.distance_emitter_collector;
-    double r = this->my_data.radius_emitter;
-
-    double x_c = -dist-r;
-
     //now we write the Cylinder field
     ofs << "Field[2]=Cylinder;"<<std::endl;
-    ofs << "Field[2].Radius="<<this->my_data.cylinder_emitter_radius<<";"<<std::endl;
-    ofs << "Field[2].VIn="<<this->my_data.mesh_ref_2*0.6<<";"<<std::endl;                    //mesh refinement in the inner part of the cylinder
-    ofs << "Field[2].VOut="<<this->my_data.mesh_ref_1<<";"<<std::endl;                   //mesh refinement in the outer part of the cylinder
-    ofs << "Field[2].XAxis=0;"<<std::endl;                                               //X axis orientation
-    ofs << "Field[2].XCenter="<<x_c<<";"<<std::endl;                                     //X coordinate of the center
+    ofs << "Field[2].Radius = cylinder_emitter_radius;"<<std::endl;
+    ofs << "Field[2].VIn = mesh_ref_2*0.6;"<<std::endl;                //mesh refinement in the inner part of the cylinder
+    ofs << "Field[2].VOut = mesh_ref_1;"<<std::endl;                   //mesh refinement in the outer part of the cylinder
+    ofs << "Field[2].XAxis=0;"<<std::endl;                                                 //X axis orientation
+    ofs << "Field[2].XCenter = -distance_emitter_collector -radius_emitter;"<<std::endl;   //X coordinate of the center
     ofs << "Field[2].YAxis=0;"<<std::endl;
     ofs << "Field[2].YCenter=0.0;"<<std::endl;
     ofs << "Field[2].ZAxis=1;"<<std::endl;
@@ -478,21 +486,15 @@ void Build_Geometry::write_profile_box(std::ofstream & ofs) const{
 
     ofs << std::endl;
     ofs << "//BOX"<<std::endl;
-    
-    double x_c = 0.5;
-    double a = this->my_data.box_profile_semi_major_axis;
-    double b = this->my_data.box_profile_semi_minor_axis;
-    double extra =  a - this->my_data.chord_length/2;
-
-    
+        
     ofs << "Field[3]=Box;"<<std::endl;
     ofs << "Field[3].Thickness= 0.5;"<<std::endl;  //Thickness of a transition layer outside the box
-    ofs << "Field[3].VIn="<<this->my_data.mesh_ref_2<<";"<<std::endl;
-    ofs << "Field[3].VOut="<<this->my_data.mesh_ref_1<<";"<<std::endl;
-    ofs << "Field[3].XMax="<< this->my_data.chord_length + extra<<";"<<std::endl;
-    ofs << "Field[3].XMin="<<-extra<<";"<<std::endl;
-    ofs << "Field[3].YMax="<< b <<";"<<std::endl;
-    ofs << "Field[3].YMin="<< -b<<";"<<std::endl;
+    ofs << "Field[3].VIn = mesh_ref_2;"<<std::endl;
+    ofs << "Field[3].VOut = mesh_ref_1;"<<std::endl;
+    ofs << "Field[3].XMax = 0.5*chord_length + box_profile_semi_major_axis;"<<std::endl;
+    ofs << "Field[3].XMin = 0.5*chord_length - box_profile_semi_major_axis;"<<std::endl;
+    ofs << "Field[3].YMax = box_profile_semi_minor_axis;"<<std::endl;
+    ofs << "Field[3].YMin = -box_profile_semi_minor_axis;;"<<std::endl;
 
     return;
 
