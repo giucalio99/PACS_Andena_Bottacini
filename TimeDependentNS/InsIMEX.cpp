@@ -1,61 +1,5 @@
 #include "InsIMEX.hpp"
 
-#include <deal.II/base/function.h>
-#include <deal.II/base/logstream.h>
-#include <deal.II/base/quadrature_lib.h>
-#include <deal.II/base/quadrature_point_data.h>
-#include <deal.II/base/tensor.h>
-#include <deal.II/base/timer.h>
-#include <deal.II/base/utilities.h>
-
-#include <deal.II/lac/affine_constraints.h>
-#include <deal.II/lac/block_sparse_matrix.h>
-#include <deal.II/lac/block_vector.h>
-#include <deal.II/lac/dynamic_sparsity_pattern.h>
-#include <deal.II/lac/full_matrix.h>
-#include <deal.II/lac/precondition.h>
-#include <deal.II/lac/solver_cg.h>
-#include <deal.II/lac/solver_gmres.h>
-#include <deal.II/lac/sparse_direct.h>
-#include <deal.II/lac/sparsity_tools.h>
-
-#include <deal.II/lac/petsc_block_sparse_matrix.h>
-#include <deal.II/lac/petsc_sparse_matrix.h>
-#include <deal.II/lac/petsc_vector.h>
-#include <deal.II/lac/petsc_precondition.h>
-#include <deal.II/lac/petsc_solver.h>
-
-#include <deal.II/grid/grid_generator.h>
-#include <deal.II/grid/grid_refinement.h>
-#include <deal.II/grid/grid_tools.h>
-#include <deal.II/grid/manifold_lib.h>
-#include <deal.II/grid/tria.h>
-#include <deal.II/grid/tria_accessor.h>
-#include <deal.II/grid/tria_iterator.h>
-
-#include <deal.II/dofs/dof_accessor.h>
-#include <deal.II/dofs/dof_handler.h>
-#include <deal.II/dofs/dof_renumbering.h>
-#include <deal.II/dofs/dof_tools.h>
-
-#include <deal.II/fe/fe_q.h>
-#include <deal.II/fe/fe_system.h>
-#include <deal.II/fe/fe_values.h>
-
-#include <deal.II/numerics/data_out.h>
-#include <deal.II/numerics/error_estimator.h>
-#include <deal.II/numerics/matrix_tools.h>
-#include <deal.II/numerics/vector_tools.h>
-
-#include <deal.II/distributed/grid_refinement.h>
-#include <deal.II/distributed/solution_transfer.h>
-#include <deal.II/distributed/tria.h>
-
-#include <fstream>
-#include <iostream>
-#include <sstream>
-
-
 // @sect4{InsIMEX::InsIMEX}
 template <int dim>
 InsIMEX<dim>::InsIMEX(parallel::distributed::Triangulation<dim> &tria)
@@ -455,7 +399,6 @@ void InsIMEX<dim>::run()
     initialize_system();
 
     // Time loop.
-    bool refined = false;
     while (time.end() - time.current() > 1e-12)            //We are not still at the end
     {
         if (time.get_timestep() == 0)
@@ -475,8 +418,7 @@ void InsIMEX<dim>::run()
         // We have to assemble the LHS for the initial two time steps:
         // once using nonzero_constraints, once using zero_constraints,
         // as well as the steps imediately after mesh refinement.
-        bool assemble_system = (time.get_timestep() < 3 || refined);
-        refined = false;
+        bool assemble_system = (time.get_timestep() < 3);
 
         assemble(apply_nonzero_constraints, assemble_system);
 
@@ -493,11 +435,6 @@ void InsIMEX<dim>::run()
         if (time.time_to_output())
         {
             output_results(time.get_timestep());         //Print result at current timestep
-        }
-        if (time.time_to_refine())
-        {
-            refine_mesh(0, 4);
-            refined = true;
         }
     }
 }
@@ -564,62 +501,3 @@ void InsIMEX<dim>::output_results(const unsigned int output_index) const
     }
 }
 
-// @sect4{InsIMEX::refine_mesh}
-//
-template <int dim>
-void InsIMEX<dim>::refine_mesh(const unsigned int min_grid_level,
-                                const unsigned int max_grid_level)
-{
-    TimerOutput::Scope timer_section(timer, "Refine mesh");
-    pcout << "Refining mesh..." << std::endl;
-
-    Vector<float> estimated_error_per_cell(triangulation.n_active_cells());
-    FEValuesExtractors::Vector velocity(0);
-    KellyErrorEstimator<dim>::estimate(dof_handler,
-                                    face_quad_formula,
-                                    {},
-                                    present_solution,
-                                    estimated_error_per_cell,
-                                    fe.component_mask(velocity));
-    parallel::distributed::GridRefinement::refine_and_coarsen_fixed_fraction(
-    triangulation, estimated_error_per_cell, 0.6, 0.4);
-    if (triangulation.n_levels() > max_grid_level)
-    {
-        for (auto cell = triangulation.begin_active(max_grid_level);
-            cell != triangulation.end();
-            ++cell)
-        {
-            cell->clear_refine_flag();
-        }
-    }
-    for (auto cell = triangulation.begin_active(min_grid_level);
-        cell != triangulation.end_active(min_grid_level);
-        ++cell)
-    {
-        cell->clear_coarsen_flag();
-    }
-
-    // Prepare to transfer
-    parallel::distributed::SolutionTransfer<dim,
-                                            PETScWrappers::MPI::BlockVector>
-    trans(dof_handler);
-
-    triangulation.prepare_coarsening_and_refinement();
-
-    trans.prepare_for_coarsening_and_refinement(present_solution);
-
-    // Refine the mesh
-    triangulation.execute_coarsening_and_refinement();
-
-    // Reinitialize the system
-    setup_dofs();
-    make_constraints();
-    initialize_system();
-
-    // Transfer solution
-    // Need a non-ghosted vector for interpolation
-    PETScWrappers::MPI::BlockVector tmp(solution_increment);
-    tmp = 0;
-    trans.interpolate(tmp);
-    present_solution = tmp;
-}

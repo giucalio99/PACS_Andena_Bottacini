@@ -83,9 +83,9 @@
     void make_constraints();
     void initialize_system();
     void assemble(bool use_nonzero_constraints, bool assemble_system);
-    std::pair<unsigned int, double> solve(bool use_nonzero_constraints,
-                                          bool assemble_system);
-    void refine_mesh(const unsigned int, const unsigned int);
+
+    std::pair<unsigned int, double> solve(bool use_nonzero_constraints, bool assemble_system);
+    
     void output_results(const unsigned int) const;
 
     double viscosity;

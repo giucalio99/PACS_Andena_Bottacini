@@ -69,22 +69,20 @@ class Time
   public:
     Time(const double time_end,
          const double delta_t,
-         const double output_interval,
-         const double refinement_interval)
+         const double output_interval)
       : timestep(0),
         time_current(0.0),
         time_end(time_end),
         delta_t(delta_t),
         output_interval(output_interval),
-        refinement_interval(refinement_interval)
     {
     }
+
     double current() const { return time_current; }
     double end() const { return time_end; }
     double get_delta_t() const { return delta_t; }
     unsigned int get_timestep() const { return timestep; }
     bool time_to_output() const;
-    bool time_to_refine() const;
     void increment();
 
   private:
@@ -100,12 +98,6 @@ bool Time::time_to_output() const
   {
     unsigned int delta = static_cast<unsigned int>(output_interval / delta_t);            //Number of steps after that an ouput must be generated
     return (timestep >= delta && timestep % delta == 0);                                  //If current timestep is an integer multiple of delta, returns true
-  }
-
-bool Time::time_to_refine() const
-  {
-    unsigned int delta = static_cast<unsigned int>(refinement_interval / delta_t);
-    return (timestep >= delta && timestep % delta == 0);
   }
 
 void Time::increment()                 //Update the current time and current timestep during the run

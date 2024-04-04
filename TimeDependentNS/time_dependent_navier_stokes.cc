@@ -195,7 +195,7 @@ return x;                                                                       
 
  void create_triangulation(Triangulation<2> &tria)
 {
-  const std::string filename = "./Meshes/BOXED_ELLIPSE.msh";
+  const std::string filename = "./example.msh";
   cout << "Reading from " << filename << endl;
   std::ifstream input_file(filename);
   GridIn<2>       grid_in;
