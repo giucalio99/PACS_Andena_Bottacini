@@ -18,13 +18,14 @@
  */
 
 // This code is the original code written by Matteo Menessini modified in order to achieve a better readability and performances 
-// by Tommaso Andena and Giacomo Bottacini (Politecnico di Milano 2023/2024)
+// by Tommaso Andena and Giacomo Bottacini (PACS project Politecnico di Milano a.e 2023/2024)
 
 // This code solve the Dirift Diffusion equation in a rectangular pn junction, in particular we perform a validation on the solver for
 // the electrical part of the problem, we test the method considering a semiconductor problem, whit a well known solution.
 // The problem consists in solving for the potential, charge and hole densities.
+// This code contains only the main and some include (for now)
 
-// Time-stepping from step-26
+// Time-stepping from step-26 deal ii tutorial
 
 #include <deal.II/base/quadrature_lib.h>//This header includes: header "config" that contains all the MACROS, header quadrature and header "points" !
 //and many more. NB CONTROLLARE INCLUSIONI HEADER IN MODO TALE DA RAGGIUNGERE TUTTE LE CLASSI
@@ -60,160 +61,11 @@
 #include <fstream>
 #include <cmath>
 
-#include "Problem.hpp" //header file that contains the template class Problem created by MatMes
-#include "Electrical_Constants.hpp" //non penso vengano usate nel main (ma in problem.hpp)
-#include "Electrical_Values.hpp"//non pesno vengano usati nel main ( ma in problem.hpp)
+#include "Problem.hpp" //header file that contains the template class Problem created by MatMes. It also contains Electrical_Values/Constants
 
-using namespace dealii;
+
+using namespace dealii;  //entrambi inutili
 using namespace std;
-
-
-void bernoulli (double x, double &bp, double &bn)
-{
-  const double xlim = 1.0e-2;
-  double ax  = fabs(x);       // std::fabs() returns the absolute value of a floating point
-
-  bp  = 0.0;
-  bn  = 0.0;
-
-  //  X=0
-  if (x == 0.0)
-    {
-      bp = 1.0;
-      bn = 1.0;
-      return;
-    }
-
-  // ASYMPTOTICS
-  if (ax > 80.0)
-    {
-      if (x > 0.0)
-        {
-          bp = 0.0;
-          bn = x;
-        }
-      else
-        {
-          bp = -x;
-          bn = 0.0;
-        }
-      return;
-    }
-
-  // INTERMEDIATE VALUES
-  if (ax <= 80 &&  ax > xlim)
-    {
-      bp = x / (exp (x) - 1.0);
-      bn = x + bp;
-      return;
-    }
-
-  // SMALL VALUES
-  if (ax <= xlim &&  ax != 0.0)
-    {
-      double jj = 1.0;
-      double fp = 1.0;
-      double fn = 1.0;
-      double df = 1.0;
-      double segno = 1.0;
-      while (fabs (df) > 1.0e-16)
-        {
-          jj += 1.0;
-          segno = -segno;
-          df = df * x / jj;
-          fp = fp + df;
-          fn = fn + segno * df;
-        }
-      bp = 1 / fp;
-      bn = 1 / fn;
-      return;
-    }
-
-};
-
-double side_length (const Point<2> a, const Point<2> b)
-{
-	double length = 0.;
-
-	if (a[0] == b[0])
-		length = std::abs(a[1] - b[1]);
-	else if (a[1] == b[1])
-		length = std::abs(a[0] - b[0]);
-	else
-		length = std::sqrt(a[0]*a[0] + b[0]*b[0] - 2.*a[0]*b[0] + a[1]*a[1] + b[1]*b[1] - 2.*a[1]*b[1]);
-
-	return length;
-}
-
-double triangle_denom(const Point<2> a, const Point<2> b, const Point<2> c)
-{
-	const double x1 = a[0];
-	const double y1 = a[1];
-
-	const double x2 = b[0];
-	const double y2 = b[1];
-
-	const double x3 = c[0];
-	const double y3 = c[1];
-
-	const double denom = x1*(y2-y3) + x2*(y3-y1) + x3*(y1-y2);
-
-	return denom;
-}
-
-Tensor<1,2> face_normal(const Point<2> a, const Point<2> b) {
-
-	Tensor<1,2> tangent, normal;
-
-	tangent[0] = b[0] - a[0];
-	tangent[1] = b[1] - a[1];
-
-	normal[0] = -tangent[1];
-	normal[1] = tangent[0];
-
-	return normal;
-}
-
-
-FullMatrix<double> compute_triangle_matrix(const Point<2> a, const Point<2> b, const Point<2> c, const double alpha12, const double alpha23, const double alpha31, const double D)
-{
-	const unsigned int size = 3;
-	FullMatrix<double> tria_matrix(size,size);
-
-	tria_matrix = 0;
-
-	const double denom = triangle_denom(a,b,c);
-	const double area = 0.5*std::abs(denom);
-
-	const Tensor<1,2> grad_psi_1 = face_normal(b,c)/denom;
-	const Tensor<1,2> grad_psi_2 = face_normal(c,a)/denom;
-	const Tensor<1,2> grad_psi_3 = face_normal(a,b)/denom;
-
-	const double l_12 = grad_psi_1 * grad_psi_2;
-	const double l_23 = grad_psi_2 * grad_psi_3;
-	const double l_31 = grad_psi_1 * grad_psi_3;
-
-	double bp12, bn12, bp23, bn23, bp31, bn31;
-
-	bernoulli(alpha12,bp12,bn12);
-	bernoulli(alpha23,bp23,bn23);
-	bernoulli(alpha31,bp31,bn31);
-
-	tria_matrix(0,1) = D * area * bp12 * l_12;
-	tria_matrix(0,2) = D * area * bn31 * l_31;
-
-	tria_matrix(1,0) = D * area * bn12 * l_12;
-	tria_matrix(1,2) = D * area * bp23 * l_23;
-
-	tria_matrix(2,0) = D * area * bp31 * l_31;
-	tria_matrix(2,1) = D * area * bn23 * l_23;
-	
-	tria_matrix(0,0) = - (tria_matrix(1,0)+tria_matrix(2,0));
-	tria_matrix(1,1) = - (tria_matrix(0,1)+tria_matrix(2,1));
-	tria_matrix(2,2) = - (tria_matrix(0,2)+tria_matrix(1,2));
-
-	return tria_matrix;
-}
 
 
 // METODO COMMENATTO DA MENESSINI NON è OPERA NOSTRA 
@@ -256,9 +108,6 @@ FullMatrix<double> compute_triangle_matrix(const Point<2> a, const Point<2> b, c
     	Assert(false, ExcNotImplemented());
   }*/
 
-
-  
-//################################### MAIN ###############################################################################################################################################
 
 int main()
 {

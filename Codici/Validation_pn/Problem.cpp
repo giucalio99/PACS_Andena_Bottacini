@@ -1,16 +1,20 @@
 #include "Problem.hpp"
 
+using namespace dealii;
+using namespace std;
 
 //--------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 // CONSTRUCTOR
 template <int dim>
 Problem<dim>::Problem()
-  : fe(1) // linear elements
-  , dof_handler(triangulation)
+  : fe(1)                       // linear elements, we approximate our variables linearly on the elements
+  , dof_handler(triangulation)  // come fa a funzionare se triangulation non è inizializzata ? questo è l'unico constructor
   , step_number(0)
-  , mapping()
+  , mapping()                   // initialize mapping 2D
 {}
+
+// since only these data members are initialized in the constructor, all the other members will be initialized by their own default constructor
 
 //---------------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -18,38 +22,43 @@ Problem<dim>::Problem()
 template <int dim>
 void Problem<dim>::create_mesh()
 {
-    const Point<dim> bottom_left(0.,-L/20.);
-	const Point<dim> top_right(L,L/20.);
+    const Point<dim> bottom_left(0.,-L/20.);  //bottom left Point of the rectangular mesh
+	const Point<dim> top_right(L,L/20.);      //top right Point of the rectangular domain
+    
+	// NB: these points are needed if you want to define a mesh starting from deal ii, otherwise use an input file as follows:
 
-	// For a structured mesh
+	// For a structured mesh (**commento di menessini**)
 	//GridGenerator::subdivided_hyper_rectangle(triangulation, {100,}, bottom_left, top_right);
 
+    // we read from input file the mesh already generated
 	const std::string filename = "./Meshes/small_square.msh";
 		ifstream input_file(filename);
 		cout << "Reading from " << filename << endl;
-	    GridIn<2>       grid_in;
-	    grid_in.attach_triangulation(triangulation);
-	    grid_in.read_msh(input_file);
+	    GridIn<2>       grid_in; //This class implements an input mechanism for grid data. It allows to read a grid structure into a triangulation object
+	    grid_in.attach_triangulation(triangulation); //we pass to grid_in our (empty) triangulation
+	    grid_in.read_msh(input_file); // read the msh file
 
-	  for (auto &face : triangulation.active_face_iterators())
+
+
+    //now we identify the boundaries of the mesh
+	for (auto &face : triangulation.active_face_iterators())    // we look only at active face, namely only at those faces that carry dofs, these cells are not father of other sub cells
+	{
+	  if (face->at_boundary())  // if we are looking at a face on the boundary (in our 2D case and edge on the boundary). at_boundary() return true-false values
 	  {
-		  if (face->at_boundary())
-		  {
-			  face->set_boundary_id(0);
-			  const Point<dim> c = face->center();
+		  face->set_boundary_id(0);             // we associate this edge with the unique ID zero (this will be the ID of the boundary faces on up/bottom boundaries)
+		  const Point<dim> c = face->center();  // we compute the geometrical center of the edge that is stored in the face iterator
 
-			  	  if ( c[1] < top_right[1] && c[1] > bottom_left[1]) {
+		  	  if ( c[1] < top_right[1] && c[1] > bottom_left[1]) { // if the y coordinate of the Point c is less than TR point and grater than BL point (basically if we are on the left/right boundary)
 
-			  		  if (c[0] < (top_right[0] + bottom_left[0])/2.) {
-			  			  face->set_boundary_id(1);
-			  		  } else
-			  			face->set_boundary_id(2);
-			  	  }
+		  		  if (c[0] < (top_right[0] + bottom_left[0])/2.) { // if we are on the left boundary edge
+		  			  face->set_boundary_id(1); //ID of the boundary faces on the left 
+		  		  } else
+		  			face->set_boundary_id(2);  //ID of the boundary faces on the right
+		  	  }
+		  }
+	}
 
-			  }
-		}
-
-	 triangulation.refine_global(3);
+	 triangulation.refine_global(3); //globally refine the mesh 3 times, namely each cells is subdivided into 3 more cells--> increase mesh resolution
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -468,4 +477,163 @@ void Problem<dim>::run()
 
 }
 
-//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+//############################ HELPER FUNCTION DEFINITION #########################################################################################################pragma endregion
+
+// description
+void bernoulli (double x, double &bp, double &bn)  // used in compute_triangle_matrix
+{
+  const double xlim = 1.0e-2;
+  double ax  = fabs(x);       // std::fabs() returns the absolute value of a floating point
+
+  bp  = 0.0;
+  bn  = 0.0;
+
+  //  X=0
+  if (x == 0.0)
+    {
+      bp = 1.0;
+      bn = 1.0;
+      return;
+    }
+
+  // ASYMPTOTICS
+  if (ax > 80.0)
+    {
+      if (x > 0.0)
+        {
+          bp = 0.0;
+          bn = x;
+        }
+      else
+        {
+          bp = -x;
+          bn = 0.0;
+        }
+      return;
+    }
+
+  // INTERMEDIATE VALUES
+  if (ax <= 80 &&  ax > xlim)
+    {
+      bp = x / (exp (x) - 1.0);
+      bn = x + bp;
+      return;
+    }
+
+  // SMALL VALUES
+  if (ax <= xlim &&  ax != 0.0)
+    {
+      double jj = 1.0;
+      double fp = 1.0;
+      double fn = 1.0;
+      double df = 1.0;
+      double segno = 1.0;
+      while (fabs (df) > 1.0e-16)
+        {
+          jj += 1.0;
+          segno = -segno;
+          df = df * x / jj;
+          fp = fp + df;
+          fn = fn + segno * df;
+        }
+      bp = 1 / fp;
+      bn = 1 / fn;
+      return;
+    }
+
+}
+
+// ------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+//description
+double side_length (const Point<2> a, const Point<2> b) // used in Problem<dim>::assemble_drift_diffusion_matrix()
+{
+	double length = 0.;
+
+	if (a[0] == b[0])
+		length = std::abs(a[1] - b[1]);
+	else if (a[1] == b[1])
+		length = std::abs(a[0] - b[0]);
+	else
+		length = std::sqrt(a[0]*a[0] + b[0]*b[0] - 2.*a[0]*b[0] + a[1]*a[1] + b[1]*b[1] - 2.*a[1]*b[1]);
+
+	return length;
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+//description 
+double triangle_denom(const Point<2> a, const Point<2> b, const Point<2> c)//used in compute_triangle_matrix
+{
+	const double x1 = a[0];
+	const double y1 = a[1];
+
+	const double x2 = b[0];
+	const double y2 = b[1];
+
+	const double x3 = c[0];
+	const double y3 = c[1];
+
+	const double denom = x1*(y2-y3) + x2*(y3-y1) + x3*(y1-y2);
+
+	return denom;
+}
+
+// -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+// description
+Tensor<1,2> face_normal(const Point<2> a, const Point<2> b) {  //used in compute_triangle_matrix
+
+	Tensor<1,2> tangent, normal;
+
+	tangent[0] = b[0] - a[0];
+	tangent[1] = b[1] - a[1];
+
+	normal[0] = -tangent[1];
+	normal[1] = tangent[0];
+
+	return normal;
+}
+
+// -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+//description
+FullMatrix<double> compute_triangle_matrix(const Point<2> a, const Point<2> b, const Point<2> c, const double alpha12, const double alpha23, const double alpha31, const double D)
+{
+	const unsigned int size = 3;
+	FullMatrix<double> tria_matrix(size,size);
+
+	tria_matrix = 0;
+
+	const double denom = triangle_denom(a,b,c);
+	const double area = 0.5*std::abs(denom);
+
+	const Tensor<1,2> grad_psi_1 = face_normal(b,c)/denom;
+	const Tensor<1,2> grad_psi_2 = face_normal(c,a)/denom;
+	const Tensor<1,2> grad_psi_3 = face_normal(a,b)/denom;
+
+	const double l_12 = grad_psi_1 * grad_psi_2;
+	const double l_23 = grad_psi_2 * grad_psi_3;
+	const double l_31 = grad_psi_1 * grad_psi_3;
+
+	double bp12, bn12, bp23, bn23, bp31, bn31;
+
+	bernoulli(alpha12,bp12,bn12);
+	bernoulli(alpha23,bp23,bn23);
+	bernoulli(alpha31,bp31,bn31);
+
+	tria_matrix(0,1) = D * area * bp12 * l_12;
+	tria_matrix(0,2) = D * area * bn31 * l_31;
+
+	tria_matrix(1,0) = D * area * bn12 * l_12;
+	tria_matrix(1,2) = D * area * bp23 * l_23;
+
+	tria_matrix(2,0) = D * area * bp31 * l_31;
+	tria_matrix(2,1) = D * area * bn23 * l_23;
+	
+	tria_matrix(0,0) = - (tria_matrix(1,0)+tria_matrix(2,0));
+	tria_matrix(1,1) = - (tria_matrix(0,1)+tria_matrix(2,1));
+	tria_matrix(2,2) = - (tria_matrix(0,2)+tria_matrix(1,2));
+
+	return tria_matrix;
+}

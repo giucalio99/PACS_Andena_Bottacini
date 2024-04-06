@@ -2,6 +2,7 @@
 
 // This .cpp file contains the definitions of the override methods "value" of the four different template functions declared
 // in "Electrical_Values.hpp" file.
+// These template classes are used to initialize the value of the problem
 
 using namespace dealii; // in order to avoid dealii:: every time
 

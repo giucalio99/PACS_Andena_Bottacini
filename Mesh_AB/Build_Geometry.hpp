@@ -42,7 +42,7 @@ class Build_Geometry{
 
 };
 
-//FUNCTIONS
+// HELPER FUNCTIONS
 std::vector<double> GCL_nodes(double a, double b, int n);      //auxiliary function that compute the Gauss Cebycev Lobatto nodes
 std::vector<double> Weights_mesh_ref(double a, double b, double c, std::vector<double> & x_coord);                        //auxiliary function that compute a parabolic profile that will be used to multiply that ref of the Points
 
