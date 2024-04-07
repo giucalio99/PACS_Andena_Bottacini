@@ -9,7 +9,7 @@ using namespace std;
 template <int dim>
 Problem<dim>::Problem()
   : fe(1)                       // linear elements, we approximate our variables linearly on the elements
-  , dof_handler(triangulation)  // come fa a funzionare se triangulation non è inizializzata ? questo è l'unico constructor
+  , dof_handler(triangulation)  // !!!!AAAAcome fa a funzionare se triangulation non è inizializzata ? questo è l'unico constructor
   , step_number(0)
   , mapping()                   // initialize mapping 2D
 {}
@@ -18,7 +18,7 @@ Problem<dim>::Problem()
 
 //---------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-// descrizione 
+// This method create, or import, the mesh over which we perform the simulation. Moreover it sets the unique tag of the boundary
 template <int dim>
 void Problem<dim>::create_mesh()
 {
@@ -31,12 +31,12 @@ void Problem<dim>::create_mesh()
 	//GridGenerator::subdivided_hyper_rectangle(triangulation, {100,}, bottom_left, top_right);
 
     // we read from input file the mesh already generated
-	const std::string filename = "./Meshes/small_square.msh";
-		ifstream input_file(filename);
-		cout << "Reading from " << filename << endl;
-	    GridIn<2>       grid_in; //This class implements an input mechanism for grid data. It allows to read a grid structure into a triangulation object
-	    grid_in.attach_triangulation(triangulation); //we pass to grid_in our (empty) triangulation
-	    grid_in.read_msh(input_file); // read the msh file
+	const std::string filename = "./Meshes/small_square.msh"; //name of the .msh file
+	ifstream input_file(filename); //ATTENZIONE, PERCHè NON CE OPEN?
+	cout << "Reading from " << filename << endl; //screen comment
+	GridIn<2>       grid_in; //This class implements an input mechanism for grid data. It allows to read a grid structure into a triangulation object
+	grid_in.attach_triangulation(triangulation); //we pass to grid_in our (empty) triangulation
+	grid_in.read_msh(input_file); // read the msh file
 
 
 
@@ -63,78 +63,91 @@ void Problem<dim>::create_mesh()
 
 //--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-//descrizione
+// This method set up the Poissson problem. In particular it enumerates the dof on the given mesh, it sets the constraints and the boundary conditions of the problem
+// it defines the sparsity patterns and initialize the matrices and the vecotrs of the problem.
 template <int dim>
 void Problem<dim>::setup_poisson()
-{
-	dof_handler.distribute_dofs(fe);
+{   
+	// INITIALIZATION OF THE DOF AND VECTORS
+	dof_handler.distribute_dofs(fe);  //Go through the triangulation and "distribute" the dof needed for the given finite element. We also enumerate them whereever they are (internal or boundary)
 
-	potential.reinit(dof_handler.n_dofs());
-	poisson_newton_update.reinit(dof_handler.n_dofs());
-
-	constraints_poisson.clear();
-	DoFTools::make_hanging_node_constraints(dof_handler, constraints_poisson);
-	VectorTools::interpolate_boundary_values(dof_handler, 1, Functions::ConstantFunction<dim>(V_E*log(N1/N_0)), constraints_poisson);
-	VectorTools::interpolate_boundary_values(dof_handler, 2, Functions::ConstantFunction<dim>(V_E*log(N2/N_0)), constraints_poisson);
-	constraints_poisson.close();
+	potential.reinit(dof_handler.n_dofs()); // We resize the dimension of the vector "potential" to the number of the dof (unsigned int)
+	poisson_newton_update.reinit(dof_handler.n_dofs()); //same
+    
+	// CONSTRAIN PROBLEM AND BOUNDARY VALUES
+	constraints_poisson.clear();  // Reset the flag determining whether new entries are accepted or not
+	DoFTools::make_hanging_node_constraints(dof_handler, constraints_poisson); // Compute the constraints resulting from the presence of hanging nodes. We put the result in constraints_poisson
+	VectorTools::interpolate_boundary_values(dof_handler, 1, Functions::ConstantFunction<dim>(V_E*log(N1/N_0)), constraints_poisson); // Set the values of constraints_poisson on the left edge boundary of the domain
+	VectorTools::interpolate_boundary_values(dof_handler, 2, Functions::ConstantFunction<dim>(V_E*log(N2/N_0)), constraints_poisson); // Set the values of constraints_poisson on the right edge boundary of the domain
+	constraints_poisson.close();  // Close the filling of entries and sort the lines and columns
 
 	// Used for the update term in Newton's method
-	zero_constraints_poisson.clear();
+	zero_constraints_poisson.clear();  // As before but on zero_constraints_poisson
 	DoFTools::make_hanging_node_constraints(dof_handler, zero_constraints_poisson);
-	VectorTools::interpolate_boundary_values(dof_handler, 1, Functions::ZeroFunction<dim>(), zero_constraints_poisson);
-	VectorTools::interpolate_boundary_values(dof_handler, 2, Functions::ZeroFunction<dim>(), zero_constraints_poisson);
+	VectorTools::interpolate_boundary_values(dof_handler, 1, Functions::ZeroFunction<dim>(), zero_constraints_poisson); // Set the values of zero_constraints_poisson on the left edge boundary of the domain to zero
+	VectorTools::interpolate_boundary_values(dof_handler, 2, Functions::ZeroFunction<dim>(), zero_constraints_poisson); // Set the values of zero_constraints_poisson on the right edge boundary of the domain to zero (homo Dirichlet)
 	zero_constraints_poisson.close();
+    
+	// SPARSITY PATTERN
+	DynamicSparsityPattern dsp(dof_handler.n_dofs()); // it mostly represents a SparsityPattern object that is kept compressed at all times, memory reason. We initialize a square pattern of size n_dof
+	DoFTools::make_sparsity_pattern(dof_handler, dsp, constraints_poisson, true); // Compute which entries of a matrix built on the given dof_handler may possibly be nonzero, and create a sparsity pattern object that represents these nonzero locations.
+    
+	// at this point we have in dsp the pattern related to the problem 
+    sparsity_pattern_poisson.copy_from(dsp); // we copy in sparsity_pattern_poisson the pattern created before
+    
+    // INITIALIZATION OF SYSTEM MATRICES AND RHS
+	system_matrix_poisson.reinit(sparsity_pattern_poisson); // Reinitialize the sparse matrix with the given sparsity pattern. The latter tells the matrix how many nonzero elements there need to be reserved.
+    laplace_matrix_poisson.reinit(sparsity_pattern_poisson);// As above
+	mass_matrix_poisson.reinit(sparsity_pattern_poisson);   // As above
 
-	DynamicSparsityPattern dsp(dof_handler.n_dofs());
-	DoFTools::make_sparsity_pattern(dof_handler, dsp, constraints_poisson, true);
+	MatrixCreator::create_laplace_matrix(mapping, dof_handler, QTrapezoid<dim>(), laplace_matrix_poisson); // Assemble the Laplace matrix with trapezoidal rule for numerical quadrature
+	MatrixCreator::create_mass_matrix(mapping, dof_handler, QTrapezoid<dim>(), mass_matrix_poisson);       // Assemble the mass matrix with trapezoidal rule for numerical quadrature
 
-	sparsity_pattern_poisson.copy_from(dsp);
-
-	system_matrix_poisson.reinit(sparsity_pattern_poisson);
-
-	laplace_matrix_poisson.reinit(sparsity_pattern_poisson);
-	MatrixCreator::create_laplace_matrix(mapping, dof_handler, QTrapezoid<dim>(), laplace_matrix_poisson);
-	mass_matrix_poisson.reinit(sparsity_pattern_poisson);
-	MatrixCreator::create_mass_matrix(mapping, dof_handler, QTrapezoid<dim>(), mass_matrix_poisson);
-
-	poisson_rhs.reinit(dof_handler.n_dofs());
+	poisson_rhs.reinit(dof_handler.n_dofs()); // initialize the rhs vector
 }
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
 
-//descizione
+// This method is called in the newton_iteration_poisson method (NON CAPISCO MOLTO A CHE PUNTO DELL 'ALGO SIAMO)
+// It defines one iteration of the newton algorithm (?)
 template <int dim>
 void Problem<dim>::assemble_nonlinear_poisson()
 {
-  // Assemble mattrix
-  system_matrix_poisson = 0;
 
-  SparseMatrix<double> ion_mass_matrix(sparsity_pattern_poisson);
-  ion_mass_matrix = 0;
-
-  for (unsigned int i = 0; i < old_ion_density.size(); ++i)
+  // ASSEMBLE MATRICES
+  system_matrix_poisson = 0; //sets all elements of the matrix to zero, but keep the sparsity pattern previously used.
+  SparseMatrix<double> ion_mass_matrix(sparsity_pattern_poisson); // We initialized the new ion_mass_matrix with our sparsity pattern
+  ion_mass_matrix = 0; // and then set all the elments to zero
+ 
+  // compute the ion mass matrix
+  for (unsigned int i = 0; i < old_ion_density.size(); ++i){
 	  ion_mass_matrix(i,i) = mass_matrix_poisson(i,i) * (old_ion_density(i) + old_electron_density(i));
+  }
 
-  system_matrix_poisson.add(q0 / V_E, ion_mass_matrix);
-  cout << "Ion matrix norm is " << system_matrix_poisson.linfty_norm() << endl;
-  system_matrix_poisson.add(eps_r * eps_0, laplace_matrix_poisson);
+  system_matrix_poisson.add(q0 / V_E, ion_mass_matrix);  // A += factor * B with the passed values
+  cout << "Ion matrix norm is " << system_matrix_poisson.linfty_norm() << endl;  // compute and print the infinit norm of the matrix
 
+  system_matrix_poisson.add(eps_r * eps_0, laplace_matrix_poisson); // same as above
   cout << "Matrix norm is " << system_matrix_poisson.linfty_norm() << endl;
 
-  // Assmble RHS
-  poisson_rhs = 0;
-    Vector<double> tmp(dof_handler.n_dofs());
-    Vector<double> doping_and_ions(dof_handler.n_dofs());
-    VectorTools::interpolate(mapping,dof_handler, DopingValues<dim>(), doping_and_ions);
+  // ASSEMBLE RHS
+  poisson_rhs = 0; // set all the values to zero
+  Vector<double> tmp(dof_handler.n_dofs()); //temporary vector of dimension n_dof
+  Vector<double> doping_and_ions(dof_handler.n_dofs()); // create a new vector of dimension n_dof
+  VectorTools::interpolate(mapping,dof_handler, DopingValues<dim>(), doping_and_ions); // We interpolate the previusly created vector with the initial values of Doping provided by DopingValues
 
-    doping_and_ions -= old_electron_density;
-    doping_and_ions += old_ion_density;
+  doping_and_ions -= old_electron_density;
+  doping_and_ions += old_ion_density;
 
-    mass_matrix_poisson.vmult(tmp,doping_and_ions);
-    poisson_rhs.add(q0, tmp);//0, tmp);//
-    laplace_matrix_poisson.vmult(tmp,potential);
-    poisson_rhs.add(- eps_r * eps_0, tmp);//- eps_r * eps_0, tmp);//
-
+  mass_matrix_poisson.vmult(tmp,doping_and_ions);
+  poisson_rhs.add(q0, tmp);//0, tmp);//
+  laplace_matrix_poisson.vmult(tmp,potential);
+  poisson_rhs.add(- eps_r * eps_0, tmp);//- eps_r * eps_0, tmp);//
+  
+  // CONDENSATE
+  //Condense a given matrix and a given vector by eliminating rows and columns of the linear system that correspond to constrained dof.
+  //The sparsity pattern associated with the matrix needs to be condensed and compressed. This function is the appropriate choice for applying inhomogeneous constraints.
+  
   zero_constraints_poisson.condense(system_matrix_poisson, poisson_rhs);
 }
 
@@ -432,7 +445,8 @@ void Problem<dim>::run()
 
 		ion_system_matrix.copy_from(drift_diffusion_matrix);
 		electron_system_matrix.copy_from(electron_drift_diffusion_matrix);
-
+        
+		// COMMENTO MENESSINI
 		// BE integration
         /*mass_matrix.vmult(ion_rhs, old_ion_density);
         mass_matrix.vmult(electron_rhs, old_electron_density);
