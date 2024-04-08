@@ -10,3 +10,5 @@ TODO: - dati coerenti con la corda o funzione con corda diversa? (!!) funzione p
       - algoritmo dei quads va bene (?). algo cambiato, con questi setting va bene ma se cambiano alcuni parametri fallisce
       - ricordarsi modificare geometri raggio ala per simu
       - i parametri vengono stampati, ora bisogna modificare le function in modo tale che scrivano in funzione del parametro che si vede nel .geo
+      - BL anche per emitter
+      - BL fix punto di attacco refinement e Tedge taglia (prova)

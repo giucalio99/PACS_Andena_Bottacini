@@ -1,5 +1,5 @@
-#ifndef ELECTRICAL_CONSTANTS.HPP
-#define ELECTRICAL_CONSTANTS.HPP
+#ifndef ELECTRICAL_CONSTANTS_HPP
+#define ELECTRICAL_CONSTANTS_HPP
 
 // This header file stores all the constants used in the validation of the pn junction problem
 
@@ -27,4 +27,4 @@ const double V_E = 2.6e-2;    // [V] ion temperature in Volts for both
 const double Dp = mup * V_E;  // Diffusion coefficient for holes (by Einstein relation)
 const double Dn = mun * V_E;  // Diffusion coefficinet for electrons (by Einstein relation)
 
-#endif // ELECTRICAL_CONSTANTS.HPP
+#endif // ELECTRICAL_CONSTANTS_HPP

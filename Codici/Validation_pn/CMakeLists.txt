@@ -1,5 +1,5 @@
 ##
-#  CMake script for the time-dependent Navier-Stokes solver:
+#  CMake script for the Validation_pn junction solver:
 ##
 
 # Set the name of the project and target:
@@ -15,17 +15,22 @@ SET(TARGET "PN")
 # or switch altogether to the large project CMakeLists.txt file discussed
 # in the "CMake in user projects" page accessible from the "User info"
 # page of the documentation.
-SET(TARGET_SRC
-  Validation_pn.cc
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -pedantic -g")
+#SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -v -Wl, --warn-unresolved-symbols")
+FILE(GLOB_RECURSE TARGET_SRC "Problem.cpp" "Electrical_Values.cpp" "Validation_pn.cc")
+FILE(GLOB_RECURSE TARGET_INC  "Electrical_Constants.hpp" "Electrical_Values.hpp" "Problem.hpp")
+SET(TARGET_SRC ${TARGET_SRC}  ${TARGET_INC})
 
-  Problem.hpp 
-  Problem.cpp
+#SET(TARGET_SRC
 
-  Electrical_Values.hpp 
-  Electrical_Values.cpp
-
-  Electrical_Constants.hpp 
-  )
+ # Electrical_Constants.hpp 
+  #Electrical_Values.hpp 
+  #Electrical_Values.cpp
+  #Problem.hpp 
+  #Problem.cpp
+  #Validation_pn.cc
+  
+  #)
 
 # Usually, you will not need to modify anything beyond this point...
 
@@ -70,8 +75,10 @@ DEAL_II_INITIALIZE_CACHED_VARIABLES()
 PROJECT(${TARGET})
 DEAL_II_INVOKE_AUTOPILOT()
 
+ADD_EXECUTABLE(mycode Problem.cpp Electrical_Values.cpp Validation_pn.cc)
+DEAL_II_SETUP_TARGET(mycode)
 
 #Per eseguire mettersi nella cartelle build e fare:
 # a) cmake .. (solo se si ha modificato il file CMakeLists.txt, se no partire dal punto b)
 # b) cmake --build .
-# c) ./fluid
+# c) ./PN

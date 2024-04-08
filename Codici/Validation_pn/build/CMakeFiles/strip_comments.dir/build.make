@@ -53,10 +53,10 @@ RM = /u/sw/toolchains/gcc-glibc/11.2.0/base/bin/cmake -E rm -f
 EQUALS = =
 
 # The top-level source directory on which CMake was run.
-CMAKE_SOURCE_DIR = /home/giacomo/Documenti/PACS_Andena_Bottacini/Codici/Validation_pn
+CMAKE_SOURCE_DIR = /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn
 
 # The top-level build directory on which CMake was run.
-CMAKE_BINARY_DIR = /home/giacomo/Documenti/PACS_Andena_Bottacini/Codici/Validation_pn/build
+CMAKE_BINARY_DIR = /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn/build
 
 # Utility rule file for strip_comments.
 
@@ -67,8 +67,8 @@ include CMakeFiles/strip_comments.dir/compiler_depend.make
 include CMakeFiles/strip_comments.dir/progress.make
 
 CMakeFiles/strip_comments:
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --blue --bold --progress-dir=/home/giacomo/Documenti/PACS_Andena_Bottacini/Codici/Validation_pn/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "strip comments"
-	/u/sw/toolchains/gcc-glibc/11.2.0/base/bin/perl -pi -e 's#^[ \t]*//.*\n##g;' Validation_pn.cc Problem.hpp Problem.cpp Electrical_Values.hpp Electrical_Values.cpp Electrical_Constants.hpp
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --blue --bold --progress-dir=/mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "strip comments"
+	/u/sw/toolchains/gcc-glibc/11.2.0/base/bin/perl -pi -e 's#^[ \t]*//.*\n##g;' /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn/Electrical_Values.cpp /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn/Problem.cpp /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn/Validation_pn.cc /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn/Electrical_Constants.hpp /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn/Electrical_Values.hpp /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn/Problem.hpp
 
 strip_comments: CMakeFiles/strip_comments
 strip_comments: CMakeFiles/strip_comments.dir/build.make
@@ -83,6 +83,6 @@ CMakeFiles/strip_comments.dir/clean:
 .PHONY : CMakeFiles/strip_comments.dir/clean
 
 CMakeFiles/strip_comments.dir/depend:
-	cd /home/giacomo/Documenti/PACS_Andena_Bottacini/Codici/Validation_pn/build && $(CMAKE_COMMAND) -E cmake_depends "Unix Makefiles" /home/giacomo/Documenti/PACS_Andena_Bottacini/Codici/Validation_pn /home/giacomo/Documenti/PACS_Andena_Bottacini/Codici/Validation_pn /home/giacomo/Documenti/PACS_Andena_Bottacini/Codici/Validation_pn/build /home/giacomo/Documenti/PACS_Andena_Bottacini/Codici/Validation_pn/build /home/giacomo/Documenti/PACS_Andena_Bottacini/Codici/Validation_pn/build/CMakeFiles/strip_comments.dir/DependInfo.cmake --color=$(COLOR)
+	cd /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn/build && $(CMAKE_COMMAND) -E cmake_depends "Unix Makefiles" /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn/build /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn/build /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn/build/CMakeFiles/strip_comments.dir/DependInfo.cmake --color=$(COLOR)
 .PHONY : CMakeFiles/strip_comments.dir/depend
 

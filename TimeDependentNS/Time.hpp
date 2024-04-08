@@ -82,8 +82,10 @@ class Time
     double end() const { return time_end; }
     double get_delta_t() const { return delta_t; }
     unsigned int get_timestep() const { return timestep; }
-    bool time_to_output() const;
-    void increment();
+    bool time_to_output() const {    unsigned int delta = static_cast<unsigned int>(output_interval / delta_t);            //Number of steps after that an ouput must be generated
+                                     return (timestep >= delta && timestep % delta == 0); }
+    void increment() {    time_current += delta_t;
+                                    ++timestep;}
 
   private:
     unsigned int timestep;
@@ -92,17 +94,5 @@ class Time
     const double delta_t;
     const double output_interval;
 };
-
-bool Time::time_to_output() const
-  {
-    unsigned int delta = static_cast<unsigned int>(output_interval / delta_t);            //Number of steps after that an ouput must be generated
-    return (timestep >= delta && timestep % delta == 0);                                  //If current timestep is an integer multiple of delta, returns true
-  }
-
-void Time::increment()                 //Update the current time and current timestep during the run
-  {
-    time_current += delta_t;
-    ++timestep;
-  }
 
 #endif

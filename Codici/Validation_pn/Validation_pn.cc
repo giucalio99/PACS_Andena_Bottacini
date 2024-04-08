@@ -23,12 +23,13 @@
 // This code solve the Dirift Diffusion equation in a rectangular pn junction, in particular we perform a validation on the solver for
 // the electrical part of the problem, we test the method considering a semiconductor problem, whit a well known solution.
 // The problem consists in solving for the potential, charge and hole densities.
-// This code contains only the main and some include (for now)
+// This code contains only the main
 
 // Time-stepping from step-26 deal ii tutorial
 
 #include "Problem.hpp" //header file that contains the template class Problem created by MatMes (e tutti gli altri header). It also contains Electrical_Values/Constants
-
+#include "Electrical_Constants.hpp"
+#include "Electrical_Values.hpp"
 
 using namespace dealii;  //entrambi inutili
 using namespace std;

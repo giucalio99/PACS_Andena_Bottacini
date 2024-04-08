@@ -19,9 +19,9 @@ set(CMAKE_C_SIMULATE_VERSION "")
 
 
 set(CMAKE_AR "/u/sw/toolchains/gcc-glibc/11.2.0/prefix/bin/ar")
-set(CMAKE_C_COMPILER_AR "/usr/bin/gcc-ar-11")
+set(CMAKE_C_COMPILER_AR "/u/sw/toolchains/gcc-glibc/11.2.0/prefix/bin/gcc-ar")
 set(CMAKE_RANLIB "/u/sw/toolchains/gcc-glibc/11.2.0/prefix/bin/ranlib")
-set(CMAKE_C_COMPILER_RANLIB "/usr/bin/gcc-ranlib-11")
+set(CMAKE_C_COMPILER_RANLIB "/u/sw/toolchains/gcc-glibc/11.2.0/prefix/bin/gcc-ranlib")
 set(CMAKE_LINKER "/usr/bin/ld")
 set(CMAKE_MT "")
 set(CMAKE_COMPILER_IS_GNUCC 1)

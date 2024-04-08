@@ -15,21 +15,26 @@ SET(TARGET "fluid")
 # or switch altogether to the large project CMakeLists.txt file discussed
 # in the "CMake in user projects" page accessible from the "User info"
 # page of the documentation.
-SET(TARGET_SRC
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -pedantic -g")
+#SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -v -Wl, --warn-unresolved-symbols")
+FILE(GLOB_RECURSE TARGET_SRC "InsIMEX.cpp" "BlockSchurPreconditioner.cpp" "time_dependent_navier_stokes.cc")
+FILE(GLOB_RECURSE TARGET_INC  "MyDataStruct.hpp" "Time.hpp" "BoundaryValues.hpp" "json.hpp" "BlockSchurPreconditioner.hpp" "InsIMEX.hpp " )
+SET(TARGET_SRC ${TARGET_SRC}  ${TARGET_INC})
 
-  MyDataStruct.hpp 
-  Time.hpp
-  BoundaryValues.hpp
-  json.hpp
+#SET(TARGET_SRC
+ # MyDataStruct.hpp 
+  #Time.hpp
+  #BoundaryValues.hpp
+ # json.hpp
 
-  BlockSchurPreconditioner.hpp 
-  BlockSchurPreconditioner.cpp
+  #BlockSchurPreconditioner.hpp 
+  #BlockSchurPreconditioner.cpp
 
-  InsIMEX.hpp 
-  InsIMEX.cpp
+  #InsIMEX.hpp 
+  #InsIMEX.cpp
 
-  time_dependent_navier_stokes.cc
-  )
+  #time_dependent_navier_stokes.cc
+  #)
 
 # Usually, you will not need to modify anything beyond this point...
 

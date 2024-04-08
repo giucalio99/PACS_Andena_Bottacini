@@ -1,10 +1,10 @@
-#ifndef PROBLEM.HPP
-#define PROBLEM.HPP
+#ifndef PROBLEM_HPP
+#define PROBLEM_HPP
 
 #include <deal.II/lac/vector.h>  // to use Vector template from deal ii
 #include "Electrical_Values.hpp" // to use the override template functions (Electrical_Values) and the constants (Electrical_Constants)
 
-// TEMPORANEAMNTE SPOSTATI QUI DAL MAIN PER FARE TEST RUN
+// These are all the include that MatMes wrote in the orignal code; may be some redundancies in the inclusions
 
 #include <deal.II/base/quadrature_lib.h>//This header includes: header "config" that contains all the MACROS, header quadrature and header "points" !
 //and many more. NB CONTROLLARE INCLUSIONI HEADER IN MODO TALE DA RAGGIUNGERE TUTTE LE CLASSI
@@ -100,23 +100,28 @@ class Problem{
     Timer timer;
 
     // PRIVATE METHODS (descriptions in the related .cpp file)
-    void create_mesh();   
 
+    // MESH
+    void create_mesh();   
+    
+    // POISSON PROBLEM
     void setup_poisson();
     void assemble_nonlinear_poisson();
     void solve_poisson();
     void newton_iteration_poisson(const double tol, const unsigned int max_iterations);
-
+    
+    // DRIFIT DIFFUSION PROBLEM
     void setup_drift_diffusion();
     void assemble_drift_diffusion_matrix();
     void apply_drift_diffusion_boundary_conditions();
     void solve_drift_diffusion();
-
+    
+    // OUTPUT
     void output_results(const unsigned int step);
 };
 
 
-// HELPER FUNCTION
+// HELPER FUNCTION ( andrebbero modificate e messi punti con reference)
 void bernoulli (double x, double &bp, double &bn);
 double side_length (const Point<2> a, const Point<2> b);
 double triangle_denom(const Point<2> a, const Point<2> b, const Point<2> c);
@@ -124,4 +129,4 @@ Tensor<1,2> face_normal(const Point<2> a, const Point<2> b);
 FullMatrix<double> compute_triangle_matrix(const Point<2> a, const Point<2> b, const Point<2> c, const double alpha12, const double alpha23, const double alpha31, const double D);
 
 
-#endif //PROBLEM.HPP
+#endif //PROBLEM_HPP

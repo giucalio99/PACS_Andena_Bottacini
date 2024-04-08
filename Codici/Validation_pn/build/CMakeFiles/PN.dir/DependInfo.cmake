@@ -8,9 +8,9 @@ set(CMAKE_DEPENDS_LANGUAGES
 
 # The set of dependency files which are needed:
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
-  "/home/giacomo/Documenti/PACS_Andena_Bottacini/Codici/Validation_pn/Electrical_Values.cpp" "CMakeFiles/PN.dir/Electrical_Values.cpp.o" "gcc" "CMakeFiles/PN.dir/Electrical_Values.cpp.o.d"
-  "/home/giacomo/Documenti/PACS_Andena_Bottacini/Codici/Validation_pn/Problem.cpp" "CMakeFiles/PN.dir/Problem.cpp.o" "gcc" "CMakeFiles/PN.dir/Problem.cpp.o.d"
-  "/home/giacomo/Documenti/PACS_Andena_Bottacini/Codici/Validation_pn/Validation_pn.cc" "CMakeFiles/PN.dir/Validation_pn.cc.o" "gcc" "CMakeFiles/PN.dir/Validation_pn.cc.o.d"
+  "/mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn/Electrical_Values.cpp" "CMakeFiles/PN.dir/Electrical_Values.cpp.o" "gcc" "CMakeFiles/PN.dir/Electrical_Values.cpp.o.d"
+  "/mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn/Problem.cpp" "CMakeFiles/PN.dir/Problem.cpp.o" "gcc" "CMakeFiles/PN.dir/Problem.cpp.o.d"
+  "/mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn/Validation_pn.cc" "CMakeFiles/PN.dir/Validation_pn.cc.o" "gcc" "CMakeFiles/PN.dir/Validation_pn.cc.o.d"
   )
 
 # Targets to which this target links.

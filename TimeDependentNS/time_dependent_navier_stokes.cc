@@ -219,7 +219,7 @@ Point<dim-1>  CollectorGeometry<dim>::pull_back(const Point<dim> &p) const      
  
 
 
- void create_triangulation(Triangulation<2> &tria, const MyDataStruct s_data)
+ void create_triangulation(parallel::distributed::Triangulation<2> &tria, const MyDataStruct s_data)
 {
   const std::string filename = "./example.msh";
   cout << "Reading from " << filename << std::endl;
@@ -303,7 +303,7 @@ try
 
     Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);                      //Initialize MPI (and, if deal.II was configured to use it, PETSc) and set the number of threads used by deal.II to the given parameter.
     parallel::distributed::Triangulation<2> tria(MPI_COMM_WORLD);
-    create_triangulation(tria, s_data);
+    //create_triangulation(tria, s_data);
     InsIMEX<2> flow(tria);
     flow.run();
   }

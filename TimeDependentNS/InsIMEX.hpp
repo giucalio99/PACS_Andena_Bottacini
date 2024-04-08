@@ -75,7 +75,7 @@ template <int dim>
 class InsIMEX
 {
 public:
-  InsIMEX(parallel::distributed::Triangulation<dim> &);              //We deserve a parallel::DIstributedTriangulation so our mesh must be in this class or similar to parallelize it
+  InsIMEX(parallel::distributed::Triangulation<dim> &tria);              //We deserve a parallel::DIstributedTriangulation so our mesh must be in this class or similar to parallelize it
   void run();
   ~InsIMEX() { timer.print_summary(); }
 

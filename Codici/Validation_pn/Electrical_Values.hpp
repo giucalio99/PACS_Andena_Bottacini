@@ -1,5 +1,5 @@
-#ifndef ELECTRICAL_VALUES.HPP
-#define ELECTRICAL_VALUES.HPP
+#ifndef ELECTRICAL_VALUES_HPP
+#define ELECTRICAL_VALUES_HPP
 
 #include <deal.II/base/function.h>   // We inherit from the abstract template class Function
 #include <deal.II/base/point.h>      // We need the Point class
@@ -26,7 +26,7 @@ for evaluating the function at a given point p in space. This method is expected
 The optional component parameter allows for computing a specific component of the function's value if it's a vector or tensor function.
 Thus the main idea behinf Function<dim> is to override the method value in order to generate a specific math function for our proposals.
 */
-
+using namespace dealii;  
 
 // -------------------------------------- DOPING VALUES ------------------------------------------------------------------------------------------------
 
@@ -83,4 +83,4 @@ class IonInitialValues : public Function<dim> {
 };
 
 
-#endif // ELECTRICAL_VALUES.HPP
+#endif // ELECTRICAL_VALUES_HPP

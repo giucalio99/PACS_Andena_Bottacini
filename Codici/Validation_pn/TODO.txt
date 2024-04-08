@@ -1,6 +1,6 @@
 TODO:
 
-- sistemare e commenatare Problem.hpp e problem.cpp , spostare in questo header gli include del main, che probabilemte servono 
-  prettamnete qui dentro.
+- sistemare e commenatare Problem.hpp e problem.cpp
 - attenzione agli include degli header 
-- chiedere errori, inoltre, questo codice prima girava ?
+- chiedere errori in caps lock, inoltre, questo codice prima girava ?
+- errori del comando cmake -- build .    mi da errori strani
