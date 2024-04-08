@@ -17,8 +17,8 @@ SET(TARGET "PN")
 # page of the documentation.
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -pedantic -g")
 #SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -v -Wl, --warn-unresolved-symbols")
-FILE(GLOB_RECURSE TARGET_SRC "Problem.cpp" "Electrical_Values.cpp" "Validation_pn.cc")
-FILE(GLOB_RECURSE TARGET_INC  "Electrical_Constants.hpp" "Electrical_Values.hpp" "Problem.hpp")
+FILE(GLOB_RECURSE TARGET_SRC  "Validation_pn.cc")
+FILE(GLOB_RECURSE TARGET_INC  "Electrical_Constants.hpp" "Electrical_Values.hpp" "Problem.hpp" "Electrical_Values_impl.hpp" "Problem_impl.hpp")
 SET(TARGET_SRC ${TARGET_SRC}  ${TARGET_INC})
 
 #SET(TARGET_SRC
@@ -75,8 +75,8 @@ DEAL_II_INITIALIZE_CACHED_VARIABLES()
 PROJECT(${TARGET})
 DEAL_II_INVOKE_AUTOPILOT()
 
-ADD_EXECUTABLE(mycode Problem.cpp Electrical_Values.cpp Validation_pn.cc)
-DEAL_II_SETUP_TARGET(mycode)
+#ADD_EXECUTABLE(mycode Problem.cpp Electrical_Values.cpp Validation_pn.cc)
+#DEAL_II_SETUP_TARGET(mycode)
 
 #Per eseguire mettersi nella cartelle build e fare:
 # a) cmake .. (solo se si ha modificato il file CMakeLists.txt, se no partire dal punto b)

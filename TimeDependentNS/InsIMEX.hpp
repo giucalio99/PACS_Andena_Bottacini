@@ -133,5 +133,6 @@ private:
   mutable TimerOutput timer;
 };
 
+#include "InsIMEX_impl.hpp"
 
 #endif

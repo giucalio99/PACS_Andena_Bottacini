@@ -123,6 +123,6 @@ private:
   const SmartPointer<PETScWrappers::MPI::BlockSparseMatrix> mass_schur;    //Schur complement of the velocity mass
 };
 
-
+#include "BlockSchurPreconditioner_impl.hpp"
 
 #endif

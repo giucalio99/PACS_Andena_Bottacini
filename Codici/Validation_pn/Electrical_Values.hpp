@@ -82,5 +82,6 @@ class IonInitialValues : public Function<dim> {
 
 };
 
+#include "Electrical_Values_impl.hpp"
 
 #endif // ELECTRICAL_VALUES_HPP
