@@ -2,6 +2,5 @@ TODO:
 
 - sistemare e commenatare Problem.hpp e problem.cpp , spostare in questo header gli include del main, che probabilemte servono 
   prettamnete qui dentro.
-- sistemare in un file le ultime funzioni home made fatte nel main
-- capire dove vengono usate le Electrival_Values functions
 - attenzione agli include degli header 
+- chiedere errori, inoltre, questo codice prima girava ?

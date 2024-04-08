@@ -12,7 +12,7 @@
 // This header file contains the declaration of four template classes that characterize the electrical problem, in particular we have:
 // DopingValues -- PotentialValues -- ElectronInitialValues -- IonInitialValues
 // These are four template classes, all of them inherit from the template class Function<dim> from deal ii and override the same 
-// method "value"
+// method "value". These template classes are used in the methods of the template class Problem.
 
 
 // brief description of Function<dim>
@@ -26,12 +26,6 @@ for evaluating the function at a given point p in space. This method is expected
 The optional component parameter allows for computing a specific component of the function's value if it's a vector or tensor function.
 Thus the main idea behinf Function<dim> is to override the method value in order to generate a specific math function for our proposals.
 */
-
-
-// NOTA BENE
-// per adesso non ho idea di dove queste classi vengano usate, ricordo che all' inizio di tutto, questo era un singolo file .cpp
-// e lo scopo di questo .cpp era di verificare il corretto funzionamento del drift diffusion. Non mi sembra vengano chiamate/usate da nessuna funnzione
-// o classe RICORDATI DI INCLUDERE QUESTO .HPP NEL FILE .CPP CHE USA QUESTI TEMPLATE
 
 
 // -------------------------------------- DOPING VALUES ------------------------------------------------------------------------------------------------

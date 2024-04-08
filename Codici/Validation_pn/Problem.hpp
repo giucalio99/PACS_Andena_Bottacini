@@ -55,20 +55,25 @@ class Problem{
   private:
 
     // PRIVATE DATA MEMBERS
+
+    // Elements that define the mesh and FEM order
     Triangulation<dim> triangulation; //This's a collection of cells that, jointly, cover the domain on which one typically wants to solve a partial differential equation. 
     FE_Q<dim>       fe;               //Implementation of a scalar Lagrange finite element Qp that yields the finite element space of continuous, piecewise polynomials of degree p in each coordinate direction.
-    DoFHandler<dim> dof_handler;      //Given a triangulation and a description of a finite element, this class enumerates degrees of freedom on all vertices, edges, faces, and cells of the triangulation. As a result, it also provides a basis for a discrete space
+    DoFHandler<dim> dof_handler;      //Given a triangulation and a description of a finite element, this class enumerates degrees of freedom on all vertices, edges, faces, and cells of the triangulation. As a result, it also provides a basis for a discrete space, which dof live on which cell
     MappingQ1<dim>  mapping;          //The mapping implemented by this class maps the reference (unit) cell to a general grid cell with straight lines in d dimensions.
     unsigned int step_number;
-
+    
+    // AffineConstraints: This class deal with constrains on dof (eg: imposing Dir BCs we are constraining the value of the dof on the boundary)
     AffineConstraints<double> constraints;
     AffineConstraints<double> constraints_poisson;
     AffineConstraints<double> zero_constraints_poisson;
-
+    
+    // SparseMatrix: This class implements the functionality to store matrix entry values in the locations denoted by a SparsityPattern.
+    // The elements of a SparsityPattern, corresponding to the places where SparseMatrix objects can store nonzero entries, are stored row-by-row
     SparseMatrix<double> laplace_matrix_poisson;
     SparseMatrix<double> mass_matrix_poisson;
     SparseMatrix<double> system_matrix_poisson;
-    SparsityPattern      sparsity_pattern_poisson;
+    SparsityPattern      sparsity_pattern_poisson;  
 
     SparseMatrix<double> ion_system_matrix;
     SparseMatrix<double> mass_matrix;
@@ -77,7 +82,8 @@ class Problem{
     SparseMatrix<double> electron_system_matrix;
     SparseMatrix<double> electron_drift_diffusion_matrix;
     SparsityPattern      sparsity_pattern;
-
+    
+    // Vector: A class that represents a vector of numerical elements
     Vector<double> poisson_newton_update;
     Vector<double> potential;
     Vector<double> poisson_rhs;
@@ -89,11 +95,12 @@ class Problem{
     Vector<double> old_electron_density;
     Vector<double> electron_density;
     Vector<double> electron_rhs;
-
+    
+    // Timer: A class that provide a way to measure the CPU time
     Timer timer;
 
-    // PRIVATE METHODS
-    void create_mesh();   //method that create the mesh of the problem, it can take the mesh as input file or generated exploiting deal ii functionalities
+    // PRIVATE METHODS (descriptions in the related .cpp file)
+    void create_mesh();   
 
     void setup_poisson();
     void assemble_nonlinear_poisson();
