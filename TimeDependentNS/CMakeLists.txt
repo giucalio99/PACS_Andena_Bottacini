@@ -16,16 +16,33 @@ SET(TARGET "fluid")
 # in the "CMake in user projects" page accessible from the "User info"
 # page of the documentation.
 SET(TARGET_SRC
+
+  MyDataStruct.hpp 
+  Time.hpp
+  BoundaryValues.hpp
+
+  BlockSchurPreconditioner.hpp 
+  BlockSchurPreconditioner.cpp
+
+  InsIMEX.hpp 
+  InsIMEX.cpp
+
   time_dependent_navier_stokes.cc
   )
 
 # Usually, you will not need to modify anything beyond this point...
 
-CMAKE_MINIMUM_REQUIRED(VERSION 3.3.0)
+CMAKE_MINIMUM_REQUIRED(VERSION 3.13.4)   
 
-FIND_PACKAGE(deal.II 9.5
-  HINTS ${deal.II_DIR} ${DEAL_II_DIR} ../ ../../ $ENV{DEAL_II_DIR}
-  )
+#FIND_PACKAGE(deal.II 9.5
+#  HINTS ${deal.II_DIR} ${DEAL_II_DIR} ../ ../../ $ENV{DEAL_II_DIR}
+#  )
+
+
+FIND_PACKAGE(deal.II 9.3.1 
+    HINTS /u/sw/toolchains/gcc-glibc/11.2.0/pkgs/dealii/9.3.1
+    )
+
 IF(NOT ${deal.II_FOUND})
   MESSAGE(FATAL_ERROR "\n"
     "*** Could not locate a (sufficiently recent) version of deal.II. ***\n\n"
@@ -55,3 +72,9 @@ ENDIF()
 DEAL_II_INITIALIZE_CACHED_VARIABLES()
 PROJECT(${TARGET})
 DEAL_II_INVOKE_AUTOPILOT()
+
+
+#Per eseguire mettersi nella cartelle build e fare:
+# a) cmake .. (solo se si ha modificato il file CMakeLists.txt, se no partire dal punto b)
+# b) cmake --build .
+# c) ./fluid

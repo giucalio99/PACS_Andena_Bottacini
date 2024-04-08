@@ -86,17 +86,17 @@ void InsIMEX<dim>::make_constraints()
                                             2,
                                             Functions::ZeroFunction<dim>(dim+1),
                                             nonzero_NS_constraints,
-                                            NS_fe.component_mask(velocities));
+                                            fe.component_mask(velocities));
     VectorTools::interpolate_boundary_values(dof_handler,
                                             3,
                                             Functions::ZeroFunction<dim>(dim+1),
                                             nonzero_NS_constraints,
-                                            NS_fe.component_mask(velocities));
+                                            fe.component_mask(velocities));
 
     VectorTools::interpolate_boundary_values(dof_handler, 
                                             10, Functions::ZeroFunction<dim>(dim+1), 
                                             nonzero_NS_constraints, 
-                                            NS_fe.component_mask(vertical_velocity));
+                                            fe.component_mask(vertical_velocity));
     
 
     VectorTools::interpolate_boundary_values(dof_handler,
@@ -104,7 +104,7 @@ void InsIMEX<dim>::make_constraints()
                                             // Outlet
                                             BoundaryValues<dim>(),//Functions::ZeroFunction<dim>(dim+1),
                                             nonzero_NS_constraints,
-                                            NS_fe.component_mask(vertical_velocity_and_pressure));
+                                            fe.component_mask(vertical_velocity_and_pressure));
 
 
 
@@ -114,32 +114,32 @@ void InsIMEX<dim>::make_constraints()
                                             0,
                                             Functions::ZeroFunction<dim>(dim+1),
                                             zero_NS_constraints,
-                                            NS_fe.component_mask(vertical_velocity));
+                                            fe.component_mask(vertical_velocity));
     VectorTools::interpolate_boundary_values(dof_handler,
                                             1,
                                             Functions::ZeroFunction<dim>(dim+1),
                                             zero_NS_constraints,
-                                            NS_fe.component_mask(velocities));
+                                            fe.component_mask(velocities));
     VectorTools::interpolate_boundary_values(dof_handler,
                                             2,
                                             Functions::ZeroFunction<dim>(dim+1),
                                             zero_NS_constraints,
-                                            NS_fe.component_mask(velocities));
+                                            fe.component_mask(velocities));
     VectorTools::interpolate_boundary_values(dof_handler,
                                             3,
                                             Functions::ZeroFunction<dim>(dim+1),
                                             zero_NS_constraints,
-                                            NS_fe.component_mask(velocities));
+                                            fe.component_mask(velocities));
     VectorTools::interpolate_boundary_values(dof_handler,
                                             10,
                                             Functions::ZeroFunction<dim>(dim+1),
                                             zero_NS_constraints,
-                                            NS_fe.component_mask(velocities));
+                                            fe.component_mask(velocities));
     VectorTools::interpolate_boundary_values(dof_handler,
                                             11, 
                                             Functions::ZeroFunction<dim>(dim+1),
                                             zero_NS_constraints,
-                                            NS_fe.component_mask(vertical_velocity_and_pressure));
+                                            fe.component_mask(vertical_velocity_and_pressure));
                                              
 
     nonzero_NS_constraints.close();         //After closing, no more entries are accepted

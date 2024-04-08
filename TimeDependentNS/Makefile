@@ -1,5 +1,5 @@
 SOURCES = BlockSchurPreconditioner.cpp InsIMEX.cpp time_dependent_navier_stokes.cc
-HEADERS = BlockSchurPreconditioner.hpp InsIMEX.hpp MyDataStruct.hpp Time.hpp
+HEADERS = BlockSchurPreconditioner.hpp InsIMEX.hpp MyDataStruct.hpp Time.hpp BoundaryValiues.hpp
 EXEC = time_dependent_navier_stokes
 
 # Percorso delle librerie e dei file di intestazione di deal.II

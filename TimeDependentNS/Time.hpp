@@ -59,7 +59,7 @@
 #include <iostream>
 #include <sstream>
 
-namespace dealii;
+using namespace dealii;
 
 // @sect3{Time stepping}
 // This class is pretty much self-explanatory.
@@ -74,7 +74,7 @@ class Time
         time_current(0.0),
         time_end(time_end),
         delta_t(delta_t),
-        output_interval(output_interval),
+        output_interval(output_interval)
     {
     }
 
@@ -91,7 +91,6 @@ class Time
     const double time_end;
     const double delta_t;
     const double output_interval;
-    const double refinement_interval;
 };
 
 bool Time::time_to_output() const
