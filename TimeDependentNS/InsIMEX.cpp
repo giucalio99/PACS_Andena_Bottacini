@@ -14,8 +14,7 @@ InsIMEX<dim>::InsIMEX(parallel::distributed::Triangulation<dim> &tria)
     mpi_communicator(MPI_COMM_WORLD),
     pcout(std::cout, Utilities::MPI::this_mpi_process(mpi_communicator) == 0),
     time(1e0, 1e-3, 1e-2, 1e-2),
-    timer(
-        mpi_communicator, pcout, TimerOutput::never, TimerOutput::wall_times)
+    timer(mpi_communicator, pcout, TimerOutput::never, TimerOutput::wall_times)
 {
 }
 
@@ -94,15 +93,15 @@ void InsIMEX<dim>::make_constraints()
                                             fe.component_mask(velocities));
 
     VectorTools::interpolate_boundary_values(dof_handler, 
-                                            10, Functions::ZeroFunction<dim>(dim+1), 
+                                            10, 
+                                            Functions::ZeroFunction<dim>(dim+1), 
                                             nonzero_NS_constraints, 
                                             fe.component_mask(vertical_velocity));
     
 
     VectorTools::interpolate_boundary_values(dof_handler,
-                                            11,                                    
-                                            // Outlet
-                                            BoundaryValues<dim>(),//Functions::ZeroFunction<dim>(dim+1),
+                                            11,                   // Outlet
+                                            Functions::ZeroFunction<dim>(dim+1),//BoundaryValues<dim>()
                                             nonzero_NS_constraints,
                                             fe.component_mask(vertical_velocity_and_pressure));
 

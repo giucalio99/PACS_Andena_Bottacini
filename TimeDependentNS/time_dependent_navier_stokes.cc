@@ -73,7 +73,6 @@
 #include <sstream>
 
 #include "InsIMEX.hpp"
-#include "BlockSchurPreconditioner.hpp"
 #include "MyDataStruct.hpp"
 #include "json.hpp"
 

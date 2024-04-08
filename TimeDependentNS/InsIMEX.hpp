@@ -58,6 +58,7 @@
 
 #include "BlockSchurPreconditioner.hpp"
 #include "Time.hpp"
+#include "BoundaryValues.hpp"
 
 // @sect3{The incompressible Navier-Stokes solver}
   //
@@ -70,67 +71,67 @@
   // and symmetric, which does not need to be solved with Newton's iteration.
   // The system is further stablized and preconditioned with Grad-Div method,
   // where GMRES solver is used as the outer solver.
-  template <int dim>
-  class InsIMEX
-  {
-  public:
-    InsIMEX(parallel::distributed::Triangulation<dim> &);              //We deserve a parallel::DIstributedTriangulation so our mesh must be in this class or similar to parallelize it
-    void run();
-    ~InsIMEX() { timer.print_summary(); }
+template <int dim>
+class InsIMEX
+{
+public:
+  InsIMEX(parallel::distributed::Triangulation<dim> &);              //We deserve a parallel::DIstributedTriangulation so our mesh must be in this class or similar to parallelize it
+  void run();
+  ~InsIMEX() { timer.print_summary(); }
 
-  private:
-    void setup_dofs();
-    void make_constraints();
-    void initialize_system();
-    void assemble(bool use_nonzero_constraints, bool assemble_system);
+private:
+  void setup_dofs();
+  void make_constraints();
+  void initialize_system();
+  void assemble(bool use_nonzero_constraints, bool assemble_system);
 
-    std::pair<unsigned int, double> solve(bool use_nonzero_constraints, bool assemble_system);
-    
-    void output_results(const unsigned int) const;
-
-    double viscosity;
-    double gamma;
-    const unsigned int degree;
-    std::vector<types::global_dof_index> dofs_per_block;
-
-    parallel::distributed::Triangulation<dim> &triangulation;
-    FESystem<dim> fe;
-    DoFHandler<dim> dof_handler;                             //The DoFHandler object that describes which degrees of freedom live on which cells.
-    QGauss<dim> volume_quad_formula;
-    QGauss<dim - 1> face_quad_formula;
-
-    AffineConstraints<double> zero_NS_constraints;              //Each "line" in objects of this class corresponds to one constrained degree of freedom
-    AffineConstraints<double> nonzero_NS_constraints;
-
-    BlockSparsityPattern sparsity_pattern;
-    
-    PETScWrappers::MPI::BlockSparseMatrix system_matrix;     // System matrix to be solved
-    
-    PETScWrappers::MPI::BlockSparseMatrix mass_matrix;       // Block matrix which includes both velocity mass matrix and pressure mass matrix.
-    
-    PETScWrappers::MPI::BlockSparseMatrix mass_schur;        // The schur complement of mass matrix is not a block matrix. It is defined as a block matrix where only one block is actually used to reuse the partition we created for the system matrix
+  std::pair<unsigned int, double> solve(bool use_nonzero_constraints, bool assemble_system);
   
-    PETScWrappers::MPI::BlockVector present_solution;        // The latest known solution.
-    
-    PETScWrappers::MPI::BlockVector solution_increment;      // The increment at a certain time step.
-   
-    PETScWrappers::MPI::BlockVector system_rhs;              // System RHS
+  void output_results(const unsigned int) const;
 
-    MPI_Comm mpi_communicator;
+  double viscosity;
+  double gamma;
+  const unsigned int degree;
+  std::vector<types::global_dof_index> dofs_per_block;
 
-    ConditionalOStream pcout;                                //A class allows you to print an output stream, useful in parallel computations
+  parallel::distributed::Triangulation<dim> &triangulation;
+  FESystem<dim> fe;
+  DoFHandler<dim> dof_handler;                             //The DoFHandler object that describes which degrees of freedom live on which cells.
+  QGauss<dim> volume_quad_formula;
+  QGauss<dim - 1> face_quad_formula;
 
-    std::vector<IndexSet> owned_partitioning;                // The IndexSets of owned velocity and pressure respectively.
+  AffineConstraints<double> zero_NS_constraints;              //Each "line" in objects of this class corresponds to one constrained degree of freedom
+  AffineConstraints<double> nonzero_NS_constraints;
 
-    std::vector<IndexSet> relevant_partitioning;             // The IndexSets of relevant velocity and pressure respectively.
+  BlockSparsityPattern sparsity_pattern;
   
-    IndexSet locally_relevant_dofs;                          //IndexSet: a class that represents a subset of indices among a larger set. 
+  PETScWrappers::MPI::BlockSparseMatrix system_matrix;     // System matrix to be solved
+  
+  PETScWrappers::MPI::BlockSparseMatrix mass_matrix;       // Block matrix which includes both velocity mass matrix and pressure mass matrix.
+  
+  PETScWrappers::MPI::BlockSparseMatrix mass_schur;        // The schur complement of mass matrix is not a block matrix. It is defined as a block matrix where only one block is actually used to reuse the partition we created for the system matrix
 
-    std::shared_ptr<BlockSchurPreconditioner> preconditioner;   // The BlockSchurPreconditioner for the entire system.
+  PETScWrappers::MPI::BlockVector present_solution;        // The latest known solution.
+  
+  PETScWrappers::MPI::BlockVector solution_increment;      // The increment at a certain time step.
+  
+  PETScWrappers::MPI::BlockVector system_rhs;              // System RHS
 
-    Time time;
-    mutable TimerOutput timer;
-  };
+  MPI_Comm mpi_communicator;
+
+  ConditionalOStream pcout;                                //A class allows you to print an output stream, useful in parallel computations
+
+  std::vector<IndexSet> owned_partitioning;                // The IndexSets of owned velocity and pressure respectively.
+
+  std::vector<IndexSet> relevant_partitioning;             // The IndexSets of relevant velocity and pressure respectively.
+
+  IndexSet locally_relevant_dofs;                          //IndexSet: a class that represents a subset of indices among a larger set. 
+
+  std::shared_ptr<BlockSchurPreconditioner> preconditioner;   // The BlockSchurPreconditioner for the entire system.
+
+  Time time;
+  mutable TimerOutput timer;
+};
 
 
 #endif

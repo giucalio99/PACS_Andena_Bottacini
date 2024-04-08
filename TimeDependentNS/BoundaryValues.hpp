@@ -59,7 +59,7 @@
 #include <iostream>
 #include <sstream>
 
-namespace dealii;
+using namespace dealii;
 
 // @sect3{Boundary values}
 // Dirichlet boundary conditions for the velocity inlet and walls.
@@ -83,11 +83,11 @@ double BoundaryValues<dim>::value(const Point<dim> & /*p*/,
 		ExcIndexRange(component, 0, this->n_components));
 
  if (component == 0) {
-	return 1.;
+	return 0.;
  }
 
  if (component == dim)
-		return p_over_rho;      // Boundary condition at fluid outlet
+		return 0.;      // Boundary condition at fluid outlet
 
  return 0.;
 }

@@ -20,6 +20,7 @@ SET(TARGET_SRC
   MyDataStruct.hpp 
   Time.hpp
   BoundaryValues.hpp
+  json.hpp
 
   BlockSchurPreconditioner.hpp 
   BlockSchurPreconditioner.cpp

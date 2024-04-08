@@ -68,7 +68,7 @@ include CMakeFiles/strip_comments.dir/progress.make
 
 CMakeFiles/strip_comments:
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --blue --bold --progress-dir=/home/giacomo/Documenti/PACS_Andena_Bottacini/TimeDependentNS/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "strip comments"
-	/u/sw/toolchains/gcc-glibc/11.2.0/base/bin/perl -pi -e 's#^[ \t]*//.*\n##g;' MyDataStruct.hpp Time.hpp BoundaryValues.hpp BlockSchurPreconditioner.hpp BlockSchurPreconditioner.cpp InsIMEX.hpp InsIMEX.cpp time_dependent_navier_stokes.cc
+	/u/sw/toolchains/gcc-glibc/11.2.0/base/bin/perl -pi -e 's#^[ \t]*//.*\n##g;' MyDataStruct.hpp Time.hpp BoundaryValues.hpp json.hpp BlockSchurPreconditioner.hpp BlockSchurPreconditioner.cpp InsIMEX.hpp InsIMEX.cpp time_dependent_navier_stokes.cc
 
 strip_comments: CMakeFiles/strip_comments
 strip_comments: CMakeFiles/strip_comments.dir/build.make
