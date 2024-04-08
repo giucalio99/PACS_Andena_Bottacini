@@ -69,38 +69,10 @@ include CMakeFiles/fluid.dir/progress.make
 # Include the compile flags for this target's objects.
 include CMakeFiles/fluid.dir/flags.make
 
-CMakeFiles/fluid.dir/BlockSchurPreconditioner.cpp.o: CMakeFiles/fluid.dir/flags.make
-CMakeFiles/fluid.dir/BlockSchurPreconditioner.cpp.o: ../BlockSchurPreconditioner.cpp
-CMakeFiles/fluid.dir/BlockSchurPreconditioner.cpp.o: CMakeFiles/fluid.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/TimeDependentNS/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object CMakeFiles/fluid.dir/BlockSchurPreconditioner.cpp.o"
-	/u/sw/toolchains/gcc-glibc/11.2.0/prefix/bin/g++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/fluid.dir/BlockSchurPreconditioner.cpp.o -MF CMakeFiles/fluid.dir/BlockSchurPreconditioner.cpp.o.d -o CMakeFiles/fluid.dir/BlockSchurPreconditioner.cpp.o -c /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/TimeDependentNS/BlockSchurPreconditioner.cpp
-
-CMakeFiles/fluid.dir/BlockSchurPreconditioner.cpp.i: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/fluid.dir/BlockSchurPreconditioner.cpp.i"
-	/u/sw/toolchains/gcc-glibc/11.2.0/prefix/bin/g++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/TimeDependentNS/BlockSchurPreconditioner.cpp > CMakeFiles/fluid.dir/BlockSchurPreconditioner.cpp.i
-
-CMakeFiles/fluid.dir/BlockSchurPreconditioner.cpp.s: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/fluid.dir/BlockSchurPreconditioner.cpp.s"
-	/u/sw/toolchains/gcc-glibc/11.2.0/prefix/bin/g++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/TimeDependentNS/BlockSchurPreconditioner.cpp -o CMakeFiles/fluid.dir/BlockSchurPreconditioner.cpp.s
-
-CMakeFiles/fluid.dir/InsIMEX.cpp.o: CMakeFiles/fluid.dir/flags.make
-CMakeFiles/fluid.dir/InsIMEX.cpp.o: ../InsIMEX.cpp
-CMakeFiles/fluid.dir/InsIMEX.cpp.o: CMakeFiles/fluid.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/TimeDependentNS/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Building CXX object CMakeFiles/fluid.dir/InsIMEX.cpp.o"
-	/u/sw/toolchains/gcc-glibc/11.2.0/prefix/bin/g++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/fluid.dir/InsIMEX.cpp.o -MF CMakeFiles/fluid.dir/InsIMEX.cpp.o.d -o CMakeFiles/fluid.dir/InsIMEX.cpp.o -c /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/TimeDependentNS/InsIMEX.cpp
-
-CMakeFiles/fluid.dir/InsIMEX.cpp.i: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/fluid.dir/InsIMEX.cpp.i"
-	/u/sw/toolchains/gcc-glibc/11.2.0/prefix/bin/g++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/TimeDependentNS/InsIMEX.cpp > CMakeFiles/fluid.dir/InsIMEX.cpp.i
-
-CMakeFiles/fluid.dir/InsIMEX.cpp.s: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/fluid.dir/InsIMEX.cpp.s"
-	/u/sw/toolchains/gcc-glibc/11.2.0/prefix/bin/g++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/TimeDependentNS/InsIMEX.cpp -o CMakeFiles/fluid.dir/InsIMEX.cpp.s
-
 CMakeFiles/fluid.dir/time_dependent_navier_stokes.cc.o: CMakeFiles/fluid.dir/flags.make
 CMakeFiles/fluid.dir/time_dependent_navier_stokes.cc.o: ../time_dependent_navier_stokes.cc
 CMakeFiles/fluid.dir/time_dependent_navier_stokes.cc.o: CMakeFiles/fluid.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/TimeDependentNS/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Building CXX object CMakeFiles/fluid.dir/time_dependent_navier_stokes.cc.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/TimeDependentNS/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object CMakeFiles/fluid.dir/time_dependent_navier_stokes.cc.o"
 	/u/sw/toolchains/gcc-glibc/11.2.0/prefix/bin/g++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/fluid.dir/time_dependent_navier_stokes.cc.o -MF CMakeFiles/fluid.dir/time_dependent_navier_stokes.cc.o.d -o CMakeFiles/fluid.dir/time_dependent_navier_stokes.cc.o -c /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/TimeDependentNS/time_dependent_navier_stokes.cc
 
 CMakeFiles/fluid.dir/time_dependent_navier_stokes.cc.i: cmake_force
@@ -113,15 +85,11 @@ CMakeFiles/fluid.dir/time_dependent_navier_stokes.cc.s: cmake_force
 
 # Object files for target fluid
 fluid_OBJECTS = \
-"CMakeFiles/fluid.dir/BlockSchurPreconditioner.cpp.o" \
-"CMakeFiles/fluid.dir/InsIMEX.cpp.o" \
 "CMakeFiles/fluid.dir/time_dependent_navier_stokes.cc.o"
 
 # External object files for target fluid
 fluid_EXTERNAL_OBJECTS =
 
-fluid: CMakeFiles/fluid.dir/BlockSchurPreconditioner.cpp.o
-fluid: CMakeFiles/fluid.dir/InsIMEX.cpp.o
 fluid: CMakeFiles/fluid.dir/time_dependent_navier_stokes.cc.o
 fluid: CMakeFiles/fluid.dir/build.make
 fluid: /u/sw/toolchains/gcc-glibc/11.2.0/pkgs/dealii/9.3.1/lib/libdeal_II.g.so.9.3.1
@@ -251,7 +219,7 @@ fluid: /u/sw/toolchains/gcc-glibc/11.2.0/base/lib/libmpi_usempi_ignore_tkr.so
 fluid: /u/sw/toolchains/gcc-glibc/11.2.0/base/lib/libmpi_mpifh.so
 fluid: /u/sw/toolchains/gcc-glibc/11.2.0/base/lib/libmpi.so
 fluid: CMakeFiles/fluid.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir=/mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/TimeDependentNS/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Linking CXX executable fluid"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir=/mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/TimeDependentNS/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Linking CXX executable fluid"
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/fluid.dir/link.txt --verbose=$(VERBOSE)
 
 # Rule to build all files generated by this target.

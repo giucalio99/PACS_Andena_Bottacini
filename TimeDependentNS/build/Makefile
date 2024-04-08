@@ -220,54 +220,6 @@ fluid/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/fluid.dir/build.make CMakeFiles/fluid.dir/build
 .PHONY : fluid/fast
 
-BlockSchurPreconditioner.o: BlockSchurPreconditioner.cpp.o
-.PHONY : BlockSchurPreconditioner.o
-
-# target to build an object file
-BlockSchurPreconditioner.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/fluid.dir/build.make CMakeFiles/fluid.dir/BlockSchurPreconditioner.cpp.o
-.PHONY : BlockSchurPreconditioner.cpp.o
-
-BlockSchurPreconditioner.i: BlockSchurPreconditioner.cpp.i
-.PHONY : BlockSchurPreconditioner.i
-
-# target to preprocess a source file
-BlockSchurPreconditioner.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/fluid.dir/build.make CMakeFiles/fluid.dir/BlockSchurPreconditioner.cpp.i
-.PHONY : BlockSchurPreconditioner.cpp.i
-
-BlockSchurPreconditioner.s: BlockSchurPreconditioner.cpp.s
-.PHONY : BlockSchurPreconditioner.s
-
-# target to generate assembly for a file
-BlockSchurPreconditioner.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/fluid.dir/build.make CMakeFiles/fluid.dir/BlockSchurPreconditioner.cpp.s
-.PHONY : BlockSchurPreconditioner.cpp.s
-
-InsIMEX.o: InsIMEX.cpp.o
-.PHONY : InsIMEX.o
-
-# target to build an object file
-InsIMEX.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/fluid.dir/build.make CMakeFiles/fluid.dir/InsIMEX.cpp.o
-.PHONY : InsIMEX.cpp.o
-
-InsIMEX.i: InsIMEX.cpp.i
-.PHONY : InsIMEX.i
-
-# target to preprocess a source file
-InsIMEX.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/fluid.dir/build.make CMakeFiles/fluid.dir/InsIMEX.cpp.i
-.PHONY : InsIMEX.cpp.i
-
-InsIMEX.s: InsIMEX.cpp.s
-.PHONY : InsIMEX.s
-
-# target to generate assembly for a file
-InsIMEX.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/fluid.dir/build.make CMakeFiles/fluid.dir/InsIMEX.cpp.s
-.PHONY : InsIMEX.cpp.s
-
 time_dependent_navier_stokes.o: time_dependent_navier_stokes.cc.o
 .PHONY : time_dependent_navier_stokes.o
 
@@ -308,12 +260,6 @@ help:
 	@echo "... runclean"
 	@echo "... strip_comments"
 	@echo "... fluid"
-	@echo "... BlockSchurPreconditioner.o"
-	@echo "... BlockSchurPreconditioner.i"
-	@echo "... BlockSchurPreconditioner.s"
-	@echo "... InsIMEX.o"
-	@echo "... InsIMEX.i"
-	@echo "... InsIMEX.s"
 	@echo "... time_dependent_navier_stokes.o"
 	@echo "... time_dependent_navier_stokes.i"
 	@echo "... time_dependent_navier_stokes.s"
