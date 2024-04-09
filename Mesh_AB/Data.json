@@ -12,12 +12,14 @@
   "mesh_ref_2":0.05,
   "mesh_ref_3":0.0015,
   "mesh_ref_4":0.0004,
-  "cylinder_emitter_radius":0.1,
   "box_profile_semi_minor_axis":0.5,
   "box_profile_semi_major_axis":0.85,
-  "BL_ratio":1.4,
-  "BL_size":0.003336,
-  "BL_thickness":0.04,
+  "BL_airfoil_ratio":1.4,
+  "BL_airfoil_size":0.003336,
+  "BL_airfoil_thickness":0.04,
   "BL_fanPoints":16,
+  "BL_emitter_ratio":1.4,
+  "BL_emitter_size":0.00336,
+  "BL_emitter_thickness":0.04,
   "mesh_algorithm":2
 }
