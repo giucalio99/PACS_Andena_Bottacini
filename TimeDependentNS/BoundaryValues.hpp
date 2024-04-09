@@ -83,11 +83,11 @@ double BoundaryValues<dim>::value(const Point<dim> & /*p*/,
 		ExcIndexRange(component, 0, this->n_components));
 
  if (component == 0) {
-	return 0.;
+	return 1.;
  }
 
  if (component == dim)
-		return 10.;      // Boundary condition at fluid outlet
+		return 1.;      // Boundary condition at fluid outlet
 
  return 0.;
 }
