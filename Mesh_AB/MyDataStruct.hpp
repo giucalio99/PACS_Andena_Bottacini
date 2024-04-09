@@ -27,15 +27,19 @@ struct MyDataStruct{                            //this struct contains all the d
    double mesh_ref_4;                           //double taht stores super fine mesh refinement
 
    // OTHER REGIONS FOR REFINEMENTS
-   double cylinder_emitter_radius;              //double that stores the length of half the edge of the box that wraps the emitter
    double box_profile_semi_minor_axis;          //double that stores the length of half the semi minor edge of the box that wraps the profile
    double box_profile_semi_major_axis;          //double that stores the length of half the semi major edge of the box that wraps the profile
 
-   // BOUNDARY LAYER
-   double BL_ratio;                             //double that stores ratio between two successive layers of BL
-   double BL_size;                              //double that stores the mesh size normal to the curve
-   double BL_thickness;                         //double that stores the maximal thickness of the BL
+   // BOUNDARY LAYER AIRFOIL
+   double BL_airfoil_ratio;                     //double that stores ratio between two successive layers of BL on the airfoil
+   double BL_airfoil_size;                      //double that stores the mesh size normal to the airfoil curve
+   double BL_airfoil_thickness;                 //double that stores the maximal thickness of the BL on the airfoil
    int BL_fanPoints;                            //int that stores the number of elements in the fan for each fan point(one for us)
+
+   // BOUNDARY LAYER EMITTER
+   double BL_emitter_ratio;                     //double that stores ratio between two successive layers of the emitter BL
+   double BL_emitter_size;                      //double that stores the mesh size normal to the curve of the emitter
+   double BL_emitter_thickness;                 //double that stores the maximal thickness of the BL on the emitter
 
    // ALGORITHM
    int mesh_algorithm;                          //int that stores the meshing algorithm that we want to use (see gmsh documentation)

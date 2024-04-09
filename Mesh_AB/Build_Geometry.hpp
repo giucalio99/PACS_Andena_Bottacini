@@ -34,8 +34,8 @@ class Build_Geometry{
      void write_loops(std::ofstream & ofs) const;              //this method writes in the output file the loops that define the airfoil, the emitter and the domain
      void write_surface(std::ofstream & ofs) const;            //this method writes in the output file the surface that will be meshed
      void write_physical_groups(std::ofstream & ofs) const;    //this method writes in the output file the physical groups that describe the regions of the domain
-     void write_boundary_layer(std::ofstream & ofs) const;     //this method writes in the output file the boundary layer field that wraps the airfoil
-     void write_emitter_cylinder(std::ofstream & ofs) const;   //this method wriets in the output file the field that define the cylinder around the emitter
+     void write_BL_airfoil(std::ofstream & ofs) const;         //this method writes in the output file the boundary layer field that wraps the airfoil
+     void write_BL_emitter(std::ofstream & ofs) const;         //this method wriets in the output file the boundary layer field that wraps the emitter
      void write_profile_box(std::ofstream & ofs) const;        //this method writes in the output file the field taht define the box around the airfoil
      void write_min_field(std::ofstream & ofs) const;          //this method wriets in the output file the min field
      
