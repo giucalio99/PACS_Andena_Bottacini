@@ -1,6 +1,3 @@
 TODO:
 
-- sistemare e commenatare Problem.hpp e problem.cpp
-- attenzione agli include degli header 
-- chiedere errori in caps lock, inoltre, questo codice prima girava ?
-- errori del comando cmake -- build .    mi da errori strani
+- parallelizzare è possbile con questo codice che è stato fatto da MatMes?

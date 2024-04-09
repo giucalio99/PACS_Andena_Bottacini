@@ -1,5 +1,3 @@
-
-
 using namespace dealii;
 using namespace std;
 
@@ -153,98 +151,100 @@ void Problem<dim>::assemble_nonlinear_poisson()
 
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-//descrizione
+// in this method we solve a linear system and we impose boundary conditions on the result vector. In particular here
+// weare computing the update solution of the newton method related to the Poisson problem
 template <int dim>
 void Problem<dim>::solve_poisson()
 {
   SparseDirectUMFPACK A_direct;
-  A_direct.initialize(system_matrix_poisson);
-  A_direct.vmult(poisson_newton_update, poisson_rhs);
+  A_direct.initialize(system_matrix_poisson);         //initialize the matrix of the Poisson system
+  A_direct.vmult(poisson_newton_update, poisson_rhs); //this function solve system Ax = b -> x = inv(A)b using the EXACT inverse of matrix system_matrix_poisson. store the result in poisson_newton_update
 
-  zero_constraints_poisson.distribute(poisson_newton_update);
+  zero_constraints_poisson.distribute(poisson_newton_update); //Set all constrained degrees of freedom to values so that the constraints are satisfied, basically we impose the zero constarins in poisson_newton_update vector
 }
 
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-//descrizione 
+// given the tolerance and the max number of iterations this method solves the Poissin newton system
 template <int dim>
 void Problem<dim>::newton_iteration_poisson(const double tolerance, const unsigned int max_n_line_searches)
   {
-	unsigned int line_search_n = 1;
-	double current_res =  tolerance + 1;
+	unsigned int line_search_n = 1;       // number of iterations
+	double current_res =  tolerance + 1;  // initial residual to enter the cycle
 
 	while (current_res > tolerance && line_search_n <= max_n_line_searches)
 	  {
-			assemble_nonlinear_poisson();
-			solve_poisson();
+			assemble_nonlinear_poisson();  // assemble the system related to the current newton iteration
+			solve_poisson();               // solve the current newton iteration
 
 			// Update Clamping
 			const double alpha = 1.;
-			cout << "Norm before clamping is " << poisson_newton_update.linfty_norm() << endl;
+			cout << "Norm before clamping is " << poisson_newton_update.linfty_norm() << endl;   // compute and print the L inf norm of the solution of the newton iteration
 			for (unsigned int i = 0; i < poisson_newton_update.size(); i++) {
 				poisson_newton_update(i) = std::max(std::min(poisson_newton_update(i),V_E),-V_E);
 
 				old_electron_density(i) *= std::exp(alpha*poisson_newton_update(i)/V_E);
 				old_ion_density(i) *= std::exp(-alpha*poisson_newton_update(i)/V_E);
 			}
-			constraints.distribute(old_ion_density);
-			constraints.distribute(old_electron_density);
+			constraints.distribute(old_ion_density);      //apply constrains on old_ion_density
+			constraints.distribute(old_electron_density); //apply constrains on old_electron_density
 
-			potential.add(alpha, poisson_newton_update);
-			constraints_poisson.distribute(potential);
+			potential.add(alpha, poisson_newton_update);  //potential = potential + alpha * poisson_newton_update
+			constraints_poisson.distribute(potential);    //apply cointraints_poisson to potential vector 
 
-			current_res = poisson_newton_update.linfty_norm();
+			current_res = poisson_newton_update.linfty_norm(); //update the residual as the L inf norm of the newton iteration
 
-			std::cout << "  alpha: " << std::setw(10) << alpha  << std::setw(0) << "  residual: " << current_res  << std::endl;
-			std::cout << "  number of line searches: " << line_search_n << "  residual: " << current_res << std::endl;
+			std::cout << "  alpha: " << std::setw(10) << alpha  << std::setw(0) << "  residual: " << current_res  << std::endl; //print out alpha and the residual (after clamping)
+			std::cout << "  number of line searches: " << line_search_n << "  residual: " << current_res << std::endl;          //print out the number of iterations
 
-			++line_search_n;
+			++line_search_n; //update number of iterations
 			//output_results(step_number); // Only needed to see the update at each step during testing
 	  }
   }
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-//descrizione
+//This methode set ups the drift diffusion problem; in particular we give the size of all the vectors involved in the computation and
+//we initialize the sparse matrices
 template <int dim>
 void Problem<dim>::setup_drift_diffusion()
-{
-	ion_density.reinit(dof_handler.n_dofs());
-	electron_density.reinit(dof_handler.n_dofs());
+{   
+	//NB non richiama/riinizializza dof handler siccome mi aspetto di chiamare prima setup Poisson (vedi run()) 
+	ion_density.reinit(dof_handler.n_dofs());           //Resize the dimension of the vector ion_density to the number of the dof (unsigned int)
+	electron_density.reinit(dof_handler.n_dofs());      //Resize the dimension of the vector electron_density to the number of the dof (unsigned int)
+    old_ion_density.reinit(dof_handler.n_dofs());       //Resize the dimension of the vector old_ion_density to the number of the dof (unsigned int)
+	old_electron_density.reinit(dof_handler.n_dofs());  //Resize the dimension of the vector old_electron_density to the number of the dof (unsigned int)
 
-	old_ion_density.reinit(dof_handler.n_dofs());
-	old_electron_density.reinit(dof_handler.n_dofs());
+	constraints.clear();   //clear all the entries of constraints
+	DoFTools::make_hanging_node_constraints(dof_handler, constraints); // Compute the constraints resulting from the presence of hanging nodes. We put the result in constraints
+	constraints.close();   //close the object
 
-	constraints.clear();
-	DoFTools::make_hanging_node_constraints(dof_handler, constraints);
-	constraints.close();
+	DynamicSparsityPattern dsp(dof_handler.n_dofs()); // it mostly represents a SparsityPattern object that is kept compressed at all times, memory reason. We initialize a square pattern of size n_dof
+	DoFTools::make_sparsity_pattern(dof_handler, dsp, constraints, false); // Compute which entries of a matrix built on dof_handler may possibly be nonzero, and create a sparsity pattern object that represents these nonzero locations, we put it in dsp
+	sparsity_pattern.copy_from(dsp);  //copy sparsity pattern from dsp
 
-	DynamicSparsityPattern dsp(dof_handler.n_dofs());
-	DoFTools::make_sparsity_pattern(dof_handler, dsp, constraints, false);
-	sparsity_pattern.copy_from(dsp);
+	ion_rhs.reinit(dof_handler.n_dofs());              //Resize the dimension of ion_rhs
+	electron_rhs.reinit(dof_handler.n_dofs());         //Resize the dimension of electron_rhs
 
-	ion_rhs.reinit(dof_handler.n_dofs());
-	electron_rhs.reinit(dof_handler.n_dofs());
-
-	ion_system_matrix.reinit(sparsity_pattern);
-	electron_system_matrix.reinit(sparsity_pattern);
-
-	drift_diffusion_matrix.reinit(sparsity_pattern);
-	electron_drift_diffusion_matrix.reinit(sparsity_pattern);
+	ion_system_matrix.reinit(sparsity_pattern);               //Reinitialize sparse matrix ion_system_matrix with the given sparsity pattern. The latter tells the matrix how many nonzero elements there need to be reserved.
+	electron_system_matrix.reinit(sparsity_pattern);          //Same 
+    drift_diffusion_matrix.reinit(sparsity_pattern);          //Same 
+	electron_drift_diffusion_matrix.reinit(sparsity_pattern); //Same
 }
 
 //------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-//descrizione
+//This method assemble the drift diffusion matrix (da rivedere con tesi riletta)
 template <int dim>
 void Problem<dim>::assemble_drift_diffusion_matrix()
-{
+{   
+	// we initialize as null all the vectors and the matrices of the system
 	electron_rhs = 0;
 	ion_rhs = 0;
 	drift_diffusion_matrix = 0;
 	electron_drift_diffusion_matrix = 0;
 
   const unsigned int vertices_per_cell = 4;
-  std::vector<types::global_dof_index> local_dof_indices(vertices_per_cell);
+  std::vector<types::global_dof_index> local_dof_indices(vertices_per_cell);// we create the local_dof_indeces vector. global_dof_index is basically unsigned int
 
   const unsigned int t_size = 3;
   Vector<double> cell_rhs(t_size);
@@ -252,14 +252,15 @@ void Problem<dim>::assemble_drift_diffusion_matrix()
   std::vector<types::global_dof_index> A_local_dof_indices(t_size);
   std::vector<types::global_dof_index> B_local_dof_indices(t_size);
 
-  for (const auto &cell : dof_handler.active_cell_iterators())
+  for (const auto &cell : dof_handler.active_cell_iterators()) //for each active cell in dof_handler 
     {
-	    A = 0;
-	    B = 0;
-	    neg_A = 0;
-		neg_B = 0;
-		cell_rhs = 0;
-		cell->get_dof_indices(local_dof_indices);
+	    A = 0;              //initialize local full matrix A to null matrix
+	    B = 0;              //initialize local full matrix B to null matrix
+	    neg_A = 0;          //initialize local full matrix neg_A to null matrix
+		neg_B = 0;          //initialize local full matrix neg_B to null matrix
+		cell_rhs = 0;       //initialize local rhs to null
+
+		cell->get_dof_indices(local_dof_indices);  //get the global indeces of the dof of the current active cell (?)
 
 		// Lexicographic ordering
 		const Point<dim> v1 = cell->vertex(2); // top left
@@ -267,7 +268,7 @@ void Problem<dim>::assemble_drift_diffusion_matrix()
 		const Point<dim> v3 = cell->vertex(0); // bottom left
 		const Point<dim> v4 = cell->vertex(1); // bottom right
 
-		const double u1 = -potential[local_dof_indices[2]]/V_E;
+		const double u1 = -potential[local_dof_indices[2]]/V_E;   //access to the global position of potential and store this values (?)
 		const double u2 = -potential[local_dof_indices[3]]/V_E;
 		const double u3 = -potential[local_dof_indices[0]]/V_E;
 		const double u4 = -potential[local_dof_indices[1]]/V_E;
@@ -299,7 +300,7 @@ void Problem<dim>::assemble_drift_diffusion_matrix()
 					neg_B = compute_triangle_matrix(v3,v4,v2, neg_alpha34, neg_alpha42, neg_alpha23, Dn);
 
 					// Matrix assemble
-					A_local_dof_indices[0] = local_dof_indices[3];
+					A_local_dof_indices[0] = local_dof_indices[3];  // assign the global indeces (?)
 					A_local_dof_indices[1] = local_dof_indices[2];
 					A_local_dof_indices[2] = local_dof_indices[0];
 
@@ -330,11 +331,11 @@ void Problem<dim>::assemble_drift_diffusion_matrix()
 
 				}
 
-				constraints.distribute_local_to_global(A, cell_rhs,  A_local_dof_indices, drift_diffusion_matrix,ion_rhs);
-				constraints.distribute_local_to_global(B, cell_rhs,  B_local_dof_indices, drift_diffusion_matrix, ion_rhs);
+				constraints.distribute_local_to_global(A, cell_rhs,  A_local_dof_indices, drift_diffusion_matrix, ion_rhs);  //This function simultaneously writes elements into the global matrix vector, according to the constraints specified by the calling AffineConstraints
+				constraints.distribute_local_to_global(B, cell_rhs,  B_local_dof_indices, drift_diffusion_matrix, ion_rhs);  //Same
 
-				constraints.distribute_local_to_global(neg_A, cell_rhs,  A_local_dof_indices, electron_drift_diffusion_matrix, electron_rhs);
-				constraints.distribute_local_to_global(neg_B, cell_rhs,  B_local_dof_indices, electron_drift_diffusion_matrix, electron_rhs);
+				constraints.distribute_local_to_global(neg_A, cell_rhs,  A_local_dof_indices, electron_drift_diffusion_matrix, electron_rhs); //Same
+				constraints.distribute_local_to_global(neg_B, cell_rhs,  B_local_dof_indices, electron_drift_diffusion_matrix, electron_rhs); //same
 		    }
 
 
@@ -342,14 +343,16 @@ void Problem<dim>::assemble_drift_diffusion_matrix()
 
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-//descrizione
+//this method apply the chosen Dirichlet boundary values for the emitter and the collector in the drift diffusion Matrix/vector
 template <int dim>
 void Problem<dim>::apply_drift_diffusion_boundary_conditions()
-{
-	    std::map<types::global_dof_index, double> emitter_boundary_values, collector_boundary_values;
+{       
+	    //create maps to store the boundary values on the collector and the emitter
+	    std::map<types::global_dof_index, double> collector_boundary_values;
+		std::map<types::global_dof_index, double> emitter_boundary_values;
 
-		VectorTools::interpolate_boundary_values(mapping, dof_handler,1, Functions::ConstantFunction<dim>(N1), emitter_boundary_values);
-	    MatrixTools::apply_boundary_values(emitter_boundary_values, electron_system_matrix, electron_density, electron_rhs);
+		VectorTools::interpolate_boundary_values(mapping, dof_handler,1, Functions::ConstantFunction<dim>(N1), emitter_boundary_values); //This function creates a map of degrees of freedom subject to Dirichlet boundary conditions and the corresponding values to be assigned to them, by interpolation around the boundary (tag 1). 
+	    MatrixTools::apply_boundary_values(emitter_boundary_values, electron_system_matrix, electron_density, electron_rhs); //Apply Dirichlet boundary conditions to the system matrix and vectors
 
 		VectorTools::interpolate_boundary_values(mapping, dof_handler,2, Functions::ConstantFunction<dim>(N2), collector_boundary_values);
 		MatrixTools::apply_boundary_values(collector_boundary_values, electron_system_matrix, electron_density, electron_rhs);
@@ -363,14 +366,15 @@ void Problem<dim>::apply_drift_diffusion_boundary_conditions()
 
 //----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-//descrizione
+//This method solve the drift diffusion system with a UMFPACK solver. UMFPACK is a set of routines for solving non-symmetric sparse linear systems.
+//This matrix class implements the usual interface of preconditioners,
 template <int dim>
 void Problem<dim>::solve_drift_diffusion()
 {
   SparseDirectUMFPACK P_direct;
-  P_direct.initialize(ion_system_matrix);
-  P_direct.vmult(ion_density, ion_rhs);
-  constraints.distribute(ion_density);
+  P_direct.initialize(ion_system_matrix);     //Initialize memory and call SparseDirectUMFPACK::factorize
+  P_direct.vmult(ion_density, ion_rhs);       //solve Ax = b with exact inv(A). store in ion_density
+  constraints.distribute(ion_density);        //apply constrains on ion_density vector
 
   SparseDirectUMFPACK N_direct;
   N_direct.initialize(electron_system_matrix);
@@ -380,7 +384,7 @@ void Problem<dim>::solve_drift_diffusion()
 
 //---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-//descrizione
+//this method creates one step in the output file; in this output file stores all the solutions with the correct names
 template <int dim>
 void Problem<dim>::output_results(const unsigned int step)
 {
@@ -405,32 +409,40 @@ void Problem<dim>::output_results(const unsigned int step)
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-//descrizione
+//this method is only public method (with the constructor) that is defined in the class. It basically solve the Poisson and the drift diffusion problem
+// moreover, it stores the solutions for the post processing
 template <int dim>
 void Problem<dim>::run()
-{
+{   
+	//CREATION OF THE MESH
 	create_mesh();
-
+    
+	// SET UP THE MATRICES AND DOFHANDLER
 	setup_poisson();
 	setup_drift_diffusion();
-
+    
+	//INITIALIZE THE VECTORS
 	VectorTools::interpolate(mapping, dof_handler, PotentialValues<dim>(), potential);
 	VectorTools::interpolate(mapping, dof_handler, IonInitialValues<dim>(), old_ion_density);
 	VectorTools::interpolate(mapping, dof_handler, ElectronInitialValues<dim>(), old_electron_density);
-
+    
+	// first step in the output
     output_results(0);
 
     Vector<double> tmp(ion_density.size());
 
     const double tol = 1.e-9*V_E;
-    const unsigned int max_it = 50;
-
+    const unsigned int max_it = 50; //max iterations
+    
+	// set the tollerances
     double ion_tol = 1.e-10;
     double electron_tol = 1.e-10;
-
+    
+	// initial error in order to enter the loop
     double ion_err = ion_tol + 1.;
     double electron_err = electron_tol + 1.;
-
+    
+	// SOLVE THE SYSTEM
     while ( (ion_err > ion_tol || electron_err > electron_tol) && step_number < 10)  //time <= max_time - 0.1*timestep
       {
         ++step_number;
@@ -493,16 +505,16 @@ void Problem<dim>::run()
 
 //############################ HELPER FUNCTION DEFINITION #########################################################################################################pragma endregion
 
-// description
-void bernoulli (double x, double &bp, double &bn)  // used in compute_triangle_matrix
+// This function is used compute_triangle_matrix, another helper function it
+void bernoulli (double x, double &bp, double &bn)
 {
   const double xlim = 1.0e-2;
   double ax  = fabs(x);       // std::fabs() returns the absolute value of a floating point
 
-  bp  = 0.0;
+  bp  = 0.0; // I set both values to zero
   bn  = 0.0;
 
-  //  X=0
+  //  X=0 CASE
   if (x == 0.0)
     {
       bp = 1.0;
@@ -510,15 +522,15 @@ void bernoulli (double x, double &bp, double &bn)  // used in compute_triangle_m
       return;
     }
 
-  // ASYMPTOTICS
+  // ASYMPTOTICS CASE ( absolute vale of x greater than 80.0)
   if (ax > 80.0)
     {
-      if (x > 0.0)
+      if (x > 0.0) // positive x
         {
           bp = 0.0;
           bn = x;
         }
-      else
+      else        // negative x
         {
           bp = -x;
           bn = 0.0;
@@ -526,7 +538,7 @@ void bernoulli (double x, double &bp, double &bn)  // used in compute_triangle_m
       return;
     }
 
-  // INTERMEDIATE VALUES
+  // INTERMEDIATE VALUES CASE ( if the absolute value of x il less than 80 and greater than 0.01)
   if (ax <= 80 &&  ax > xlim)
     {
       bp = x / (exp (x) - 1.0);
@@ -534,7 +546,7 @@ void bernoulli (double x, double &bp, double &bn)  // used in compute_triangle_m
       return;
     }
 
-  // SMALL VALUES
+  // SMALL VALUES CASE (absolute value ox less than 0.01 but not null)
   if (ax <= xlim &&  ax != 0.0)
     {
       double jj = 1.0;
@@ -559,8 +571,8 @@ void bernoulli (double x, double &bp, double &bn)  // used in compute_triangle_m
 
 // ------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-//description
-double side_length (const Point<2> a, const Point<2> b) // used in Problem<dim>::assemble_drift_diffusion_matrix()
+// This helper function is used in assemble_drift_diffusion_matrix, it computes the distance between two 2D Points
+double side_length (const Point<2> a, const Point<2> b) 
 {
 	double length = 0.;
 
@@ -576,8 +588,9 @@ double side_length (const Point<2> a, const Point<2> b) // used in Problem<dim>:
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-//description 
-double triangle_denom(const Point<2> a, const Point<2> b, const Point<2> c)//used in compute_triangle_matrix
+// This function is used in compute_triangle_matrix another helper function, it computes the Area of the triagle builed by the passed points
+// NB: 0.5 is multiplied in the other helper function 
+double triangle_denom(const Point<2> a, const Point<2> b, const Point<2> c)
 {
 	const double x1 = a[0];
 	const double y1 = a[1];
@@ -595,8 +608,9 @@ double triangle_denom(const Point<2> a, const Point<2> b, const Point<2> c)//use
 
 // -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-// description
-Tensor<1,2> face_normal(const Point<2> a, const Point<2> b) {  //used in compute_triangle_matrix
+// This function is used in compute_trinagle_matrix, another helper function. 
+// it return a vector (rank 1 tensor) that habits the 2D plane. It return a normal vector to the face characterized by the two points
+Tensor<1,2> face_normal(const Point<2> a, const Point<2> b) { 
 
 	Tensor<1,2> tangent, normal;
 
@@ -611,16 +625,19 @@ Tensor<1,2> face_normal(const Point<2> a, const Point<2> b) {  //used in compute
 
 // -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-//description
+// I pass 3 points, 3 + 1 constants double
+// this method create the local full matrix when we are assebling the drift diffusion matrix
 FullMatrix<double> compute_triangle_matrix(const Point<2> a, const Point<2> b, const Point<2> c, const double alpha12, const double alpha23, const double alpha31, const double D)
 {
 	const unsigned int size = 3;
 	FullMatrix<double> tria_matrix(size,size);
 
-	tria_matrix = 0;
-
+	tria_matrix = 0; //initialize as null matrix
+    
+	//compute the area of the triangle builded by the arguments points
 	const double denom = triangle_denom(a,b,c);
 	const double area = 0.5*std::abs(denom);
+    
 
 	const Tensor<1,2> grad_psi_1 = face_normal(b,c)/denom;
 	const Tensor<1,2> grad_psi_2 = face_normal(c,a)/denom;

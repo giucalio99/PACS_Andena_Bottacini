@@ -5,10 +5,6 @@
 #include <deal.II/base/point.h>      // We need the Point class
 #include "Electrical_Constants.hpp"  // header that contains all the constants
 
-// (PICCOLA NOTA SIMILE A QUELLA DEL MAIN, NON ESSENDO SICURO DELLE INCLUSIONI, INCLUDO ENTRAMBE GLI HEADER Function Point
-// PROBABILMENTE IN FUNCTION C'è GIA POINT!)
-
-
 // This header file contains the declaration of four template classes that characterize the electrical problem, in particular we have:
 // DopingValues -- PotentialValues -- ElectronInitialValues -- IonInitialValues
 // These are four template classes, all of them inherit from the template class Function<dim> from deal ii and override the same 
@@ -16,7 +12,6 @@
 
 
 // brief description of Function<dim>
-
 /*
 In the deal.II library, Function<dim> is a template class representing a mathematical function defined on a domain with a specific dimension dim.
 This class provides a framework for defining and evaluating functions that are commonly used in finite element methods.
@@ -26,7 +21,7 @@ for evaluating the function at a given point p in space. This method is expected
 The optional component parameter allows for computing a specific component of the function's value if it's a vector or tensor function.
 Thus the main idea behinf Function<dim> is to override the method value in order to generate a specific math function for our proposals.
 */
-using namespace dealii;  
+using namespace dealii;  //avoid dealii:: each time
 
 // -------------------------------------- DOPING VALUES ------------------------------------------------------------------------------------------------
 
@@ -82,6 +77,6 @@ class IonInitialValues : public Function<dim> {
 
 };
 
-#include "Electrical_Values_impl.hpp"
+#include "Electrical_Values_impl.hpp" // we refer to this file for the definitions of the templates
 
 #endif // ELECTRICAL_VALUES_HPP

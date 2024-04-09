@@ -1,7 +1,6 @@
 #ifndef PROBLEM_HPP
 #define PROBLEM_HPP
 
-#include <deal.II/lac/vector.h>  // to use Vector template from deal ii
 #include "Electrical_Values.hpp" // to use the override template functions (Electrical_Values) and the constants (Electrical_Constants)
 
 // These are all the include that MatMes wrote in the orignal code; may be some redundancies in the inclusions
