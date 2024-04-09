@@ -70,6 +70,8 @@ void InsIMEX<dim>::make_constraints()
     const FEValuesExtractors::Scalar vertical_velocity(1);
     const FEValuesExtractors::Vector vertical_velocity_and_pressure(1);
 
+    BoundaryValues<dim> BoundaryValueFunction;
+
     //Nonzero_NS_constraints (Now is a zero constraint, possiamo cambiarla passando una function del tipo BoundaryValues)
     VectorTools::interpolate_boundary_values(dof_handler,                           //Assign B.C. different from zero in nonzero_constraints
                                             0,
@@ -94,14 +96,14 @@ void InsIMEX<dim>::make_constraints()
 
     VectorTools::interpolate_boundary_values(dof_handler, 
                                             10, 
-                                            Functions::ZeroFunction<dim>(dim+1), 
+                                            BoundaryValueFunction, //Functions::ZeroFunction<dim>(dim+1), 
                                             nonzero_NS_constraints, 
                                             fe.component_mask(vertical_velocity));
     
 
     VectorTools::interpolate_boundary_values(dof_handler,
                                             11,                   // Outlet
-                                            Functions::ZeroFunction<dim>(dim+1),//BoundaryValues<dim>()
+                                            BoundaryValueFunction, //Functions::ZeroFunction<dim>(dim+1),//BoundaryValues<dim>()
                                             nonzero_NS_constraints,
                                             fe.component_mask(vertical_velocity_and_pressure));
 

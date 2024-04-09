@@ -87,7 +87,7 @@ double BoundaryValues<dim>::value(const Point<dim> & /*p*/,
  }
 
  if (component == dim)
-		return 0.;      // Boundary condition at fluid outlet
+		return 10.;      // Boundary condition at fluid outlet
 
  return 0.;
 }
