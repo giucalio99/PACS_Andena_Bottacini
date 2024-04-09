@@ -4,4 +4,6 @@
 *.o
 # Ignore .geo files
 *.geo
+# Ignore build directory of TDNS
+TimeDependentNS/build/
 
