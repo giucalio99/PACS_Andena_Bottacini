@@ -8,3 +8,5 @@
 TimeDependentNS/build/
 # Ignore build directory in Validation_pn
 Codici/Validation_pn/build
+# Ignore build directory in Validation_pn
+Codici/Validation_pn_parallel/build

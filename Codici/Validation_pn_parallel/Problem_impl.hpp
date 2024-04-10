@@ -29,7 +29,7 @@ void Problem<dim>::create_mesh()
 	//GridGenerator::subdivided_hyper_rectangle(triangulation, {100,}, bottom_left, top_right);
 
     // we read from input file the mesh already generated
-	const std::string filename = "../../../Meshes/small_square.msh"; //name of the .msh file
+	const std::string filename = "./Meshes/small_square.msh"; //name of the .msh file
 	ifstream input_file(filename); //ATTENZIONE, PERCHè NON CE OPEN?
 	cout << "Reading from " << filename << endl; //screen comment
 	GridIn<2>       grid_in; //This class implements an input mechanism for grid data. It allows to read a grid structure into a triangulation object

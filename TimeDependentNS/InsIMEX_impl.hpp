@@ -72,10 +72,10 @@ void InsIMEX<dim>::make_constraints()
 
     BoundaryValues<dim> BoundaryValueFunction;
 
-    //Nonzero_NS_constraints (Now is a zero constraint, possiamo cambiarla passando una function del tipo BoundaryValues)
-    VectorTools::interpolate_boundary_values(dof_handler,                           //Assign B.C. different from zero in nonzero_constraints
-                                            0,
-                                            Functions::ZeroFunction<dim>(dim+1),    //For each degree of freedom at the boundary, its boundary value will be overwritten if its index already exists in boundary_values. Otherwise, a new entry with proper index and boundary value for this degree of freedom will be inserted into boundary_values.
+    //Nonzero_NS_constraints //Assign B.C. different from zero in nonzero_constraints
+    VectorTools::interpolate_boundary_values(dof_handler,                           
+                                            0,                                      // Up and down 
+                                            Functions::ZeroFunction<dim>(dim+1),    // For each degree of freedom at the boundary, its boundary value will be overwritten if its index already exists in boundary_values. Otherwise, a new entry with proper index and boundary value for this degree of freedom will be inserted into boundary_values.
                                             nonzero_NS_constraints,
                                             fe.component_mask(vertical_velocity));
     VectorTools::interpolate_boundary_values(dof_handler,
@@ -88,22 +88,22 @@ void InsIMEX<dim>::make_constraints()
                                             Functions::ZeroFunction<dim>(dim+1),
                                             nonzero_NS_constraints,
                                             fe.component_mask(velocities));
-    VectorTools::interpolate_boundary_values(dof_handler,
-                                            3,
-                                            Functions::ZeroFunction<dim>(dim+1),
-                                            nonzero_NS_constraints,
-                                            fe.component_mask(velocities));
+    // VectorTools::interpolate_boundary_values(dof_handler,
+    //                                         3,
+    //                                         Functions::ZeroFunction<dim>(dim+1),
+    //                                         nonzero_NS_constraints,
+    //                                         fe.component_mask(velocities));
 
     VectorTools::interpolate_boundary_values(dof_handler, 
-                                            10, 
-                                            BoundaryValueFunction, //Functions::ZeroFunction<dim>(dim+1), 
+                                            10,                    // Inlet
+                                            BoundaryValueFunction, // Functions::ZeroFunction<dim>(dim+1), 
                                             nonzero_NS_constraints, 
-                                            fe.component_mask(vertical_velocity));
+                                            fe.component_mask(velocities));
     
 
     VectorTools::interpolate_boundary_values(dof_handler,
-                                            11,                   // Outlet
-                                            BoundaryValueFunction, //Functions::ZeroFunction<dim>(dim+1),//BoundaryValues<dim>()
+                                            11,                    // Outlet
+                                            BoundaryValueFunction, // Functions::ZeroFunction<dim>(dim+1),//BoundaryValues<dim>()
                                             nonzero_NS_constraints,
                                             fe.component_mask(vertical_velocity_and_pressure));
 
@@ -126,11 +126,11 @@ void InsIMEX<dim>::make_constraints()
                                             Functions::ZeroFunction<dim>(dim+1),
                                             zero_NS_constraints,
                                             fe.component_mask(velocities));
-    VectorTools::interpolate_boundary_values(dof_handler,
-                                            3,
-                                            Functions::ZeroFunction<dim>(dim+1),
-                                            zero_NS_constraints,
-                                            fe.component_mask(velocities));
+    // VectorTools::interpolate_boundary_values(dof_handler,
+    //                                         3,
+    //                                         Functions::ZeroFunction<dim>(dim+1),
+    //                                         zero_NS_constraints,
+    //                                         fe.component_mask(velocities));
     VectorTools::interpolate_boundary_values(dof_handler,
                                             10,
                                             Functions::ZeroFunction<dim>(dim+1),

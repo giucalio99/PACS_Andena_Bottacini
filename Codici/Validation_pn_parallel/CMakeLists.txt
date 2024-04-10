@@ -1,9 +1,9 @@
 ##
-#  CMake script for the time-dependent Navier-Stokes solver:
+#  CMake script for the Validation_pn junction solver:
 ##
 
 # Set the name of the project and target:
-SET(TARGET "fluid")
+SET(TARGET "PN")
 
 # Declare all source files the target consists of. Here, this is only
 # the one step-X.cc file, but as you expand your project you may wish
@@ -17,23 +17,19 @@ SET(TARGET "fluid")
 # page of the documentation.
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -pedantic -g")
 #SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -v -Wl, --warn-unresolved-symbols")
-FILE(GLOB_RECURSE TARGET_SRC "time_dependent_navier_stokes.cc")
-FILE(GLOB_RECURSE TARGET_INC  "MyDataStruct.hpp" "Time.hpp" "BoundaryValues.hpp" "json.hpp" "BlockSchurPreconditioner.hpp" "BlockSchurPreconditioner_impl.hpp" "InsIMEX.hpp" "InsIMEX_impl.hpp" )
+FILE(GLOB_RECURSE TARGET_SRC  "Validation_pn.cc")
+FILE(GLOB_RECURSE TARGET_INC  "Electrical_Constants.hpp" "Electrical_Values.hpp" "Problem.hpp" "Electrical_Values_impl.hpp" "Problem_impl.hpp")
 SET(TARGET_SRC ${TARGET_SRC}  ${TARGET_INC})
 
 #SET(TARGET_SRC
- # MyDataStruct.hpp 
-  #Time.hpp
-  #BoundaryValues.hpp
- # json.hpp
 
-  #BlockSchurPreconditioner.hpp 
-  #BlockSchurPreconditioner.cpp
-
-  #InsIMEX.hpp 
-  #InsIMEX.cpp
-
-  #time_dependent_navier_stokes.cc
+ # Electrical_Constants.hpp 
+  #Electrical_Values.hpp 
+  #Electrical_Values.cpp
+  #Problem.hpp 
+  #Problem.cpp
+  #Validation_pn.cc
+  
   #)
 
 # Usually, you will not need to modify anything beyond this point...
@@ -57,17 +53,6 @@ IF(NOT ${deal.II_FOUND})
     )
 ENDIF()
 
-# FIND_PACKAGE(MPI REQUIRED)
-# SET (CMAKE_C_COMPILER ${MPI_C_COMPILER})
-# SET (CMAKE_CXX_COMPILER ${MPI_CXX_COMPILER})
-
-# # Specifica il numero di processori
-# SET(MPIEXEC_NUMPROC_FLAG "-n")
-# SET(MPIEXEC_MAX_NUMPROCS "1")  # Cambia il numero di processori a tuo piacimento
-
-# # Aggiungi gli flags MPI
-# SET(MPIEXEC_PREFLAGS "${MPIEXEC_NUMPROC_FLAG} ${MPIEXEC_MAX_NUMPROCS}")
-
 #
 # Are all dependencies fulfilled?
 #
@@ -90,8 +75,10 @@ DEAL_II_INITIALIZE_CACHED_VARIABLES()
 PROJECT(${TARGET})
 DEAL_II_INVOKE_AUTOPILOT()
 
+#ADD_EXECUTABLE(mycode Problem.cpp Electrical_Values.cpp Validation_pn.cc)
+#DEAL_II_SETUP_TARGET(mycode)
 
 #Per eseguire mettersi nella cartelle build e fare:
 # a) cmake .. (solo se si ha modificato il file CMakeLists.txt, se no partire dal punto b)
 # b) cmake --build .
-# c) ./fluid
+# c) ./PN

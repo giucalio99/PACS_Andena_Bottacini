@@ -128,10 +128,10 @@ double get_collector_height(const double &p, const MyDataStruct &s_data)
 {
   
   const double collector_length = s_data.chord_length; // [m] collector length  
-  const double g = s_data.distance_emitter_collector;
+  //const double g = s_data.distance_emitter_collector;
 
-  const double x = (p-g)/collector_length;
-  //const double x = p/collector_length;
+  //const double x = (p-g)/collector_length;
+  const double x = p/collector_length;
 	double y = 0;
 
 	if ( abs(x-1.) > 1e-12 && abs(x) > 1e-12 ) {
@@ -219,7 +219,7 @@ Point<dim-1>  CollectorGeometry<dim>::pull_back(const Point<dim> &p) const      
 
 
  void create_triangulation(parallel::distributed::Triangulation<2> &tria, const MyDataStruct s_data)
-{
+{ 
   const std::string filename = "../../Meshes/REAL_EMITTER.msh";
   cout << "Reading from " << filename << std::endl;
   std::ifstream input_file(filename);
@@ -293,7 +293,7 @@ try
   {
     using namespace dealii;
 
-    Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);                      //Initialize MPI (and, if deal.II was configured to use it, PETSc) and set the number of threads used by deal.II to the given parameter.
+    Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 2);            //Initialize MPI (and, if deal.II was configured to use it, PETSc) and set the maximum number of threads used by deal.II to the given parameter.
     parallel::distributed::Triangulation<2> tria(MPI_COMM_WORLD);
     create_triangulation(tria, s_data);
     InsIMEX<2> flow(tria);
