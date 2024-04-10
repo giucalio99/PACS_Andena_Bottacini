@@ -50,5 +50,5 @@ endif()
 
 string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT
        "${CMAKE_INSTALL_MANIFEST_FILES}")
-file(WRITE "/mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn/build/${CMAKE_INSTALL_MANIFEST}"
+file(WRITE "/mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn/build3/${CMAKE_INSTALL_MANIFEST}"
      "${CMAKE_INSTALL_MANIFEST_CONTENT}")

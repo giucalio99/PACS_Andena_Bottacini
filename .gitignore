@@ -6,4 +6,5 @@
 *.geo
 # Ignore build directory of TDNS
 TimeDependentNS/build/
-
+# Ignore build directory in Validation_pn
+Codici/Validation_pn/build

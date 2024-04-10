@@ -56,7 +56,7 @@ EQUALS = =
 CMAKE_SOURCE_DIR = /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn
 
 # The top-level build directory on which CMake was run.
-CMAKE_BINARY_DIR = /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn/build
+CMAKE_BINARY_DIR = /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn/build3
 
 # Utility rule file for distclean.
 
@@ -67,9 +67,9 @@ include CMakeFiles/distclean.dir/compiler_depend.make
 include CMakeFiles/distclean.dir/progress.make
 
 CMakeFiles/distclean:
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --blue --bold --progress-dir=/mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "distclean invoked"
-	/u/sw/toolchains/gcc-glibc/11.2.0/base/bin/cmake --build /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn/build --target clean
-	/u/sw/toolchains/gcc-glibc/11.2.0/base/bin/cmake --build /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn/build --target runclean
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --blue --bold --progress-dir=/mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn/build3/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "distclean invoked"
+	/u/sw/toolchains/gcc-glibc/11.2.0/base/bin/cmake --build /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn/build3 --target clean
+	/u/sw/toolchains/gcc-glibc/11.2.0/base/bin/cmake --build /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn/build3 --target runclean
 	/u/sw/toolchains/gcc-glibc/11.2.0/base/bin/cmake -E remove_directory CMakeFiles
 	/u/sw/toolchains/gcc-glibc/11.2.0/base/bin/cmake -E remove CMakeCache.txt cmake_install.cmake Makefile build.ninja rules.ninja .ninja_deps .ninja_log
 
@@ -86,6 +86,6 @@ CMakeFiles/distclean.dir/clean:
 .PHONY : CMakeFiles/distclean.dir/clean
 
 CMakeFiles/distclean.dir/depend:
-	cd /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn/build && $(CMAKE_COMMAND) -E cmake_depends "Unix Makefiles" /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn/build /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn/build /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn/build/CMakeFiles/distclean.dir/DependInfo.cmake --color=$(COLOR)
+	cd /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn/build3 && $(CMAKE_COMMAND) -E cmake_depends "Unix Makefiles" /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn/build3 /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn/build3 /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn/build3/CMakeFiles/distclean.dir/DependInfo.cmake --color=$(COLOR)
 .PHONY : CMakeFiles/distclean.dir/depend
 

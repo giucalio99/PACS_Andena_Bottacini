@@ -3,7 +3,7 @@
 
 # Relative path conversion top directories.
 set(CMAKE_RELATIVE_PATH_TOP_SOURCE "/mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn")
-set(CMAKE_RELATIVE_PATH_TOP_BINARY "/mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn/build")
+set(CMAKE_RELATIVE_PATH_TOP_BINARY "/mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn/build3")
 
 # Force unix paths in dependencies.
 set(CMAKE_FORCE_UNIX_PATHS 1)

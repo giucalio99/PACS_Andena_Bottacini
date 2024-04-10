@@ -60,7 +60,7 @@ EQUALS = =
 CMAKE_SOURCE_DIR = /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn
 
 # The top-level build directory on which CMake was run.
-CMAKE_BINARY_DIR = /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn/build
+CMAKE_BINARY_DIR = /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn/build3
 
 #=============================================================================
 # Targets provided globally by CMake.
@@ -87,9 +87,9 @@ edit_cache/fast: edit_cache
 
 # The main all target
 all: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn/build/CMakeFiles /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn/build//CMakeFiles/progress.marks
+	$(CMAKE_COMMAND) -E cmake_progress_start /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn/build3/CMakeFiles /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn/build3//CMakeFiles/progress.marks
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 all
-	$(CMAKE_COMMAND) -E cmake_progress_start /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn/build/CMakeFiles 0
+	$(CMAKE_COMMAND) -E cmake_progress_start /mnt/d/IPROP_PACS_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn/build3/CMakeFiles 0
 .PHONY : all
 
 # The main clean target
@@ -220,54 +220,6 @@ PN/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/PN.dir/build.make CMakeFiles/PN.dir/build
 .PHONY : PN/fast
 
-Electrical_Values.o: Electrical_Values.cpp.o
-.PHONY : Electrical_Values.o
-
-# target to build an object file
-Electrical_Values.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/PN.dir/build.make CMakeFiles/PN.dir/Electrical_Values.cpp.o
-.PHONY : Electrical_Values.cpp.o
-
-Electrical_Values.i: Electrical_Values.cpp.i
-.PHONY : Electrical_Values.i
-
-# target to preprocess a source file
-Electrical_Values.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/PN.dir/build.make CMakeFiles/PN.dir/Electrical_Values.cpp.i
-.PHONY : Electrical_Values.cpp.i
-
-Electrical_Values.s: Electrical_Values.cpp.s
-.PHONY : Electrical_Values.s
-
-# target to generate assembly for a file
-Electrical_Values.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/PN.dir/build.make CMakeFiles/PN.dir/Electrical_Values.cpp.s
-.PHONY : Electrical_Values.cpp.s
-
-Problem.o: Problem.cpp.o
-.PHONY : Problem.o
-
-# target to build an object file
-Problem.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/PN.dir/build.make CMakeFiles/PN.dir/Problem.cpp.o
-.PHONY : Problem.cpp.o
-
-Problem.i: Problem.cpp.i
-.PHONY : Problem.i
-
-# target to preprocess a source file
-Problem.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/PN.dir/build.make CMakeFiles/PN.dir/Problem.cpp.i
-.PHONY : Problem.cpp.i
-
-Problem.s: Problem.cpp.s
-.PHONY : Problem.s
-
-# target to generate assembly for a file
-Problem.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/PN.dir/build.make CMakeFiles/PN.dir/Problem.cpp.s
-.PHONY : Problem.cpp.s
-
 Validation_pn.o: Validation_pn.cc.o
 .PHONY : Validation_pn.o
 
@@ -308,12 +260,6 @@ help:
 	@echo "... runclean"
 	@echo "... strip_comments"
 	@echo "... PN"
-	@echo "... Electrical_Values.o"
-	@echo "... Electrical_Values.i"
-	@echo "... Electrical_Values.s"
-	@echo "... Problem.o"
-	@echo "... Problem.i"
-	@echo "... Problem.s"
 	@echo "... Validation_pn.o"
 	@echo "... Validation_pn.i"
 	@echo "... Validation_pn.s"
