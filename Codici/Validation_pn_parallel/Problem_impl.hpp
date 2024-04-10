@@ -5,7 +5,7 @@ using namespace std;
 
 // CONSTRUCTOR
 template <int dim>
-Problem<dim>::Problem()
+Problem<dim>::Problem(parallel::distributed::Triangulation<dim> &triangulation)
   : fe(1)                       // linear elements, we approximate our variables linearly on the elements
   , dof_handler(triangulation)  // !!!!AAAAcome fa a funzionare se triangulation non è inizializzata ? questo è l'unico constructor
   , step_number(0)
@@ -29,7 +29,7 @@ void Problem<dim>::create_mesh()
 	//GridGenerator::subdivided_hyper_rectangle(triangulation, {100,}, bottom_left, top_right);
 
     // we read from input file the mesh already generated
-	const std::string filename = "./Meshes/small_square.msh"; //name of the .msh file
+	const std::string filename = "../../../Meshes/small_square.msh"; //name of the .msh file
 	ifstream input_file(filename); //ATTENZIONE, PERCHè NON CE OPEN?
 	cout << "Reading from " << filename << endl; //screen comment
 	GridIn<2>       grid_in; //This class implements an input mechanism for grid data. It allows to read a grid structure into a triangulation object
@@ -98,6 +98,7 @@ void Problem<dim>::setup_poisson()
     laplace_matrix_poisson.reinit(sparsity_pattern_poisson);// As above
 	mass_matrix_poisson.reinit(sparsity_pattern_poisson);   // As above
 
+	//If the library is configured to use multithreading, this functions work in parallel.
 	MatrixCreator::create_laplace_matrix(mapping, dof_handler, QTrapezoid<dim>(), laplace_matrix_poisson); // Assemble the Laplace matrix with trapezoidal rule for numerical quadrature
 	MatrixCreator::create_mass_matrix(mapping, dof_handler, QTrapezoid<dim>(), mass_matrix_poisson);       // Assemble the mass matrix with trapezoidal rule for numerical quadrature
 
@@ -114,7 +115,7 @@ void Problem<dim>::assemble_nonlinear_poisson()
 
   // ASSEMBLE MATRICES
   system_matrix_poisson = 0; //sets all elements of the matrix to zero, but keep the sparsity pattern previously used.
-  SparseMatrix<double> ion_mass_matrix(sparsity_pattern_poisson); // We initialized the new ion_mass_matrix with our sparsity pattern
+  PETScWrappers::MPI::SparseMatrix ion_mass_matrix(sparsity_pattern_poisson); // We initialized the new ion_mass_matrix with our sparsity pattern
   ion_mass_matrix = 0; // and then set all the elments to zero
  
   // compute the ion mass matrix
@@ -130,8 +131,8 @@ void Problem<dim>::assemble_nonlinear_poisson()
 
   // ASSEMBLE RHS
   poisson_rhs = 0; // set all the values to zero
-  Vector<double> tmp(dof_handler.n_dofs()); //temporary vector of dimension n_dof
-  Vector<double> doping_and_ions(dof_handler.n_dofs()); // create a new vector of dimension n_dof
+  PETScWrappers::MPI::Vector tmp(dof_handler.n_dofs()); //temporary vector of dimension n_dof
+  PETScWrappers::MPI::Vector doping_and_ions(dof_handler.n_dofs()); // create a new vector of dimension n_dof
   VectorTools::interpolate(mapping,dof_handler, DopingValues<dim>(), doping_and_ions); // We interpolate the previusly created vector with the initial values of Doping provided by DopingValues
 
   doping_and_ions -= old_electron_density;
@@ -156,7 +157,8 @@ void Problem<dim>::assemble_nonlinear_poisson()
 template <int dim>
 void Problem<dim>::solve_poisson()
 {
-  SparseDirectUMFPACK A_direct;
+  PETScWrappers::SparseDirectMUMPS A_direct;
+  //SparseDirectUMFPACK A_direct;
   A_direct.initialize(system_matrix_poisson);         //initialize the matrix of the Poisson system
   A_direct.vmult(poisson_newton_update, poisson_rhs); //this function solve system Ax = b -> x = inv(A)b using the EXACT inverse of matrix system_matrix_poisson. store the result in poisson_newton_update
 
@@ -371,7 +373,8 @@ void Problem<dim>::apply_drift_diffusion_boundary_conditions()
 template <int dim>
 void Problem<dim>::solve_drift_diffusion()
 {
-  SparseDirectUMFPACK P_direct;
+  PETScWrappers::SparseDirectMUMPS A_direct;
+  //SparseDirectUMFPACK P_direct;
   P_direct.initialize(ion_system_matrix);     //Initialize memory and call SparseDirectUMFPACK::factorize
   P_direct.vmult(ion_density, ion_rhs);       //solve Ax = b with exact inv(A). store in ion_density
   constraints.distribute(ion_density);        //apply constrains on ion_density vector

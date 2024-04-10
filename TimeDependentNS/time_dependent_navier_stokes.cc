@@ -293,7 +293,7 @@ try
   {
     using namespace dealii;
 
-    Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 2);            //Initialize MPI (and, if deal.II was configured to use it, PETSc) and set the maximum number of threads used by deal.II to the given parameter.
+    Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);            //Initialize MPI (and, if deal.II was configured to use it, PETSc) and set the maximum number of threads used by deal.II to the given parameter.
     parallel::distributed::Triangulation<2> tria(MPI_COMM_WORLD);
     create_triangulation(tria, s_data);
     InsIMEX<2> flow(tria);

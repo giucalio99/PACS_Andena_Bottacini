@@ -20,7 +20,7 @@
 // This code is the original code written by Matteo Menessini modified in order to achieve a better readability and performances 
 // by Tommaso Andena and Giacomo Bottacini (PACS project Politecnico di Milano a.e 2023/2024)
 
-// This code solve the Dirift Diffusion equation in a rectangular pn junction, in particular we perform a validation on the solver for
+// This code solve the Drift Diffusion equation in a rectangular pn junction, in particular we perform a validation on the solver for
 // the electrical part of the problem, we test the method considering a semiconductor problem, whit a well known solution.
 // The problem consists in solving for the potential, charge and hole densities.
 // This code contains only the main. Some parts of the code are from Time-stepping step-26 deal ii tutorial
@@ -67,11 +67,13 @@
   }*/
 
 
-int main()
+int main(int argc, char *argv[])
 {
   try
     {
-      Problem<2> drift_diffusion;
+      Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);            //Initialize MPI (and, if deal.II was configured to use it, PETSc) and set the maximum number of threads used by deal.II to the given parameter.
+      parallel::distributed::Triangulation<2> tria(MPI_COMM_WORLD);
+      Problem<2> drift_diffusion(tria);
       drift_diffusion.run();
     }
   catch (std::exception &exc)

@@ -36,6 +36,19 @@
 #include <deal.II/numerics/vector_tools.h>
 #include <deal.II/numerics/matrix_tools.h> // For Laplace Matrix
 
+//To parallelize
+#include <deal.II/distributed/grid_refinement.h>
+#include <deal.II/distributed/solution_transfer.h>
+#include <deal.II/distributed/tria.h>
+
+#include <deal.II/lac/petsc_block_sparse_matrix.h>
+#include <deal.II/lac/petsc_sparse_matrix.h>
+#include <deal.II/lac/petsc_vector.h>
+#include <deal.II/lac/petsc_precondition.h>
+#include <deal.II/lac/petsc_solver.h>
+#include <deal.II/base/utilities.h>
+#include <deal.II/lac/petsc_solver.h>   //Add to use MUMps direct solver
+
 #include <fstream>
 #include <cmath>
 
@@ -46,7 +59,7 @@ class Problem{
   public:
 
     // CONSTRUCTOR
-    Problem();
+    Problem(parallel::distributed::Triangulation<dim> &triangulation);
 
     // PUBLIC METHOD TO RUN THE SOLVER
     void run();
@@ -56,7 +69,7 @@ class Problem{
     // PRIVATE DATA MEMBERS
 
     // Elements that define the mesh and FEM order
-    Triangulation<dim> triangulation; //This's a collection of cells that, jointly, cover the domain on which one typically wants to solve a partial differential equation. 
+    parallel::distributed::Triangulation<dim> triangulation; //This's a collection of cells that, jointly, cover the domain on which one typically wants to solve a partial differential equation. 
     FE_Q<dim>       fe;               //Implementation of a scalar Lagrange finite element Qp that yields the finite element space of continuous, piecewise polynomials of degree p in each coordinate direction.
     DoFHandler<dim> dof_handler;      //Given a triangulation and a description of a finite element, this class enumerates degrees of freedom on all vertices, edges, faces, and cells of the triangulation. As a result, it also provides a basis for a discrete space, which dof live on which cell
     MappingQ1<dim>  mapping;          //The mapping implemented by this class maps the reference (unit) cell to a general grid cell with straight lines in d dimensions.
@@ -69,31 +82,32 @@ class Problem{
     
     // SparseMatrix: This class implements the functionality to store matrix entry values in the locations denoted by a SparsityPattern.
     // The elements of a SparsityPattern, corresponding to the places where SparseMatrix objects can store nonzero entries, are stored row-by-row
-    SparseMatrix<double> laplace_matrix_poisson;
-    SparseMatrix<double> mass_matrix_poisson;
-    SparseMatrix<double> system_matrix_poisson;
+    PETScWrappers::MPI::SparseMatrix laplace_matrix_poisson;
+    PETScWrappers::MPI::SparseMatrix mass_matrix_poisson;
+    PETScWrappers::MPI::SparseMatrix system_matrix_poisson;
     SparsityPattern      sparsity_pattern_poisson;  
 
-    SparseMatrix<double> ion_system_matrix;
-    SparseMatrix<double> mass_matrix;
-    SparseMatrix<double> drift_diffusion_matrix;
+    PETScWrappers::MPI::SparseMatrix ion_system_matrix;
+    PETScWrappers::MPI::SparseMatrix mass_matrix;
+    PETScWrappers::MPI::SparseMatrix drift_diffusion_matrix;
 
-    SparseMatrix<double> electron_system_matrix;
-    SparseMatrix<double> electron_drift_diffusion_matrix;
+    PETScWrappers::MPI::SparseMatrix electron_system_matrix;
+    PETScWrappers::MPI::SparseMatrix electron_drift_diffusion_matrix;
     SparsityPattern      sparsity_pattern;
     
     // Vector: A class that represents a vector of numerical elements
-    Vector<double> poisson_newton_update;
-    Vector<double> potential;
-    Vector<double> poisson_rhs;
+    PETScWrappers::MPI::Vector poisson_newton_update;
+    PETScWrappers::MPI::Vector potential;
+    PETScWrappers::MPI::Vector poisson_rhs;
 
-    Vector<double> old_ion_density;
-    Vector<double> ion_density;
-    Vector<double> ion_rhs;
+    PETScWrappers::MPI::Vector old_ion_density;
+    PETScWrappers::MPI::Vector ion_density;
+    PETScWrappers::MPI::Vector ion_rhs;
 
-    Vector<double> old_electron_density;
-    Vector<double> electron_density;
-    Vector<double> electron_rhs;
+    PETScWrappers::MPI::Vector old_electron_density;
+    PETScWrappers::MPI::Vector electron_density;
+    PETScWrappers::MPI::Vector electron_rhs;
+    
     
     // Timer: A class that provide a way to measure the CPU time
     Timer timer;
