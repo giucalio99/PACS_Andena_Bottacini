@@ -5,11 +5,14 @@ using namespace std;
 
 // CONSTRUCTOR
 template <int dim>
-Problem<dim>::Problem(parallel::distributed::Triangulation<dim> &triangulation)
+Problem<dim>::Problem(parallel::distributed::Triangulation<dim> &tria)
   : fe(1)                       // linear elements, we approximate our variables linearly on the elements
-  , dof_handler(triangulation)  // !!!!AAAAcome fa a funzionare se triangulation non è inizializzata ? questo è l'unico constructor
+  , triangulation(tria)
+  , dof_handler(tria)  
   , step_number(0)
   , mapping()                   // initialize mapping 2D
+  , mpi_communicator(MPI_COMM_WORLD)
+  , pcout(std::cout, Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
 {}
 
 // since only these data members are initialized in the constructor, all the other members will be initialized by their own default constructor
@@ -68,9 +71,14 @@ void Problem<dim>::setup_poisson()
 {   
 	// INITIALIZATION OF THE DOF AND VECTORS
 	dof_handler.distribute_dofs(fe);  //Go through the triangulation and "distribute" the dof needed for the given finite element. We also enumerate them whereever they are (internal or boundary)
+	DoFRenumbering::Cuthill_McKee(dof_handler);  //We want particular distribution of dofs
 
-	potential.reinit(dof_handler.n_dofs()); // We resize the dimension of the vector "potential" to the number of the dof (unsigned int)
-	poisson_newton_update.reinit(dof_handler.n_dofs()); //same
+	local_owned_dofs = dof_handler.locally_owned_dofs();
+	DoFTools::extract_locally_relevant_dofs(dof_handler,locally_relevant_dofs);   
+
+
+	potential.reinit(local_owned_dofs, locally_relevant_dofs, mpi_communicator); // Reinit as a vector with ghost elements
+	poisson_newton_update.reinit(local_owned_dofs, mpi_communicator);  // Reinit as a vector without ghost elements
     
 	// CONSTRAIN PROBLEM AND BOUNDARY VALUES
 	constraints_poisson.clear();  // Reset the flag determining whether new entries are accepted or not
@@ -94,9 +102,9 @@ void Problem<dim>::setup_poisson()
     sparsity_pattern_poisson.copy_from(dsp); // we copy in sparsity_pattern_poisson the pattern created before
     
     // INITIALIZATION OF SYSTEM MATRICES AND RHS
-	system_matrix_poisson.reinit(sparsity_pattern_poisson); // Reinitialize the sparse matrix with the given sparsity pattern. The latter tells the matrix how many nonzero elements there need to be reserved.
-    laplace_matrix_poisson.reinit(sparsity_pattern_poisson);// As above
-	mass_matrix_poisson.reinit(sparsity_pattern_poisson);   // As above
+	system_matrix_poisson.reinit(local_owned_dofs, dsp, mpi_communicator); // Reinitialize the sparse matrix with the given sparsity pattern. The latter tells the matrix how many nonzero elements there need to be reserved.
+    laplace_matrix_poisson.reinit(local_owned_dofs, dsp, mpi_communicator);// As above
+	mass_matrix_poisson.reinit(local_owned_dofs, dsp, mpi_communicator);   // As above
 
 	//If the library is configured to use multithreading, this functions work in parallel.
 	MatrixCreator::create_laplace_matrix(mapping, dof_handler, QTrapezoid<dim>(), laplace_matrix_poisson); // Assemble the Laplace matrix with trapezoidal rule for numerical quadrature
@@ -147,7 +155,7 @@ void Problem<dim>::assemble_nonlinear_poisson()
   //Condense a given matrix and a given vector by eliminating rows and columns of the linear system that correspond to constrained dof.
   //The sparsity pattern associated with the matrix needs to be condensed and compressed. This function is the appropriate choice for applying inhomogeneous constraints.
   
-  zero_constraints_poisson.condense(system_matrix_poisson, poisson_rhs);
+  // zero_constraints_poisson.condense(system_matrix_poisson, poisson_rhs);
 }
 
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -157,10 +165,12 @@ void Problem<dim>::assemble_nonlinear_poisson()
 template <int dim>
 void Problem<dim>::solve_poisson()
 {
-  PETScWrappers::SparseDirectMUMPS A_direct;
+  PETScWrappers::SparseDirectMUMPS solverMUMPS;
+  PETScWrappers::PreconditionBase pb;
+  solverMUMPS.solve(system_matrix_poisson, poisson_newton_update, poisson_rhs, pb) 
   //SparseDirectUMFPACK A_direct;
-  A_direct.initialize(system_matrix_poisson);         //initialize the matrix of the Poisson system
-  A_direct.vmult(poisson_newton_update, poisson_rhs); //this function solve system Ax = b -> x = inv(A)b using the EXACT inverse of matrix system_matrix_poisson. store the result in poisson_newton_update
+  //A_direct.initialize(system_matrix_poisson);         //initialize the matrix of the Poisson system
+  //A_direct.vmult(poisson_newton_update, poisson_rhs); //this function solve system Ax = b -> x = inv(A)b using the EXACT inverse of matrix system_matrix_poisson. store the result in poisson_newton_update
 
   zero_constraints_poisson.distribute(poisson_newton_update); //Set all constrained degrees of freedom to values so that the constraints are satisfied, basically we impose the zero constarins in poisson_newton_update vector
 }
@@ -211,10 +221,10 @@ template <int dim>
 void Problem<dim>::setup_drift_diffusion()
 {   
 	//NB non richiama/riinizializza dof handler siccome mi aspetto di chiamare prima setup Poisson (vedi run()) 
-	ion_density.reinit(dof_handler.n_dofs());           //Resize the dimension of the vector ion_density to the number of the dof (unsigned int)
-	electron_density.reinit(dof_handler.n_dofs());      //Resize the dimension of the vector electron_density to the number of the dof (unsigned int)
-    old_ion_density.reinit(dof_handler.n_dofs());       //Resize the dimension of the vector old_ion_density to the number of the dof (unsigned int)
-	old_electron_density.reinit(dof_handler.n_dofs());  //Resize the dimension of the vector old_electron_density to the number of the dof (unsigned int)
+	ion_density.reinit(local_owned_dofs, locally_relevant_dofs, mpi_communicator);           //Resize the dimension of the vector ion_density to the number of the dof (unsigned int)
+	electron_density.reinit(local_owned_dofs, locally_relevant_dofs, mpi_communicator);     //Resize the dimension of the vector electron_density to the number of the dof (unsigned int)
+    old_ion_density.reinit(local_owned_dofs, locally_relevant_dofs, mpi_communicator);       //Resize the dimension of the vector old_ion_density to the number of the dof (unsigned int)
+	old_electron_density.reinit(local_owned_dofs, locally_relevant_dofs, mpi_communicator);  //Resize the dimension of the vector old_electron_density to the number of the dof (unsigned int)
 
 	constraints.clear();   //clear all the entries of constraints
 	DoFTools::make_hanging_node_constraints(dof_handler, constraints); // Compute the constraints resulting from the presence of hanging nodes. We put the result in constraints
@@ -224,13 +234,13 @@ void Problem<dim>::setup_drift_diffusion()
 	DoFTools::make_sparsity_pattern(dof_handler, dsp, constraints, false); // Compute which entries of a matrix built on dof_handler may possibly be nonzero, and create a sparsity pattern object that represents these nonzero locations, we put it in dsp
 	sparsity_pattern.copy_from(dsp);  //copy sparsity pattern from dsp
 
-	ion_rhs.reinit(dof_handler.n_dofs());              //Resize the dimension of ion_rhs
-	electron_rhs.reinit(dof_handler.n_dofs());         //Resize the dimension of electron_rhs
+	ion_rhs.reinit(local_owned_dofs, locally_relevant_dofs, mpi_communicator);             //Resize the dimension of ion_rhs
+	electron_rhs.reinit(local_owned_dofs, locally_relevant_dofs, mpi_communicator);        //Resize the dimension of electron_rhs
 
-	ion_system_matrix.reinit(sparsity_pattern);               //Reinitialize sparse matrix ion_system_matrix with the given sparsity pattern. The latter tells the matrix how many nonzero elements there need to be reserved.
-	electron_system_matrix.reinit(sparsity_pattern);          //Same 
-    drift_diffusion_matrix.reinit(sparsity_pattern);          //Same 
-	electron_drift_diffusion_matrix.reinit(sparsity_pattern); //Same
+	ion_system_matrix.reinit(local_owned_dofs, dsp, mpi_communicator);               //Reinitialize sparse matrix ion_system_matrix with the given sparsity pattern. The latter tells the matrix how many nonzero elements there need to be reserved.
+	electron_system_matrix.reinit(local_owned_dofs, dsp, mpi_communicator);          //Same 
+    drift_diffusion_matrix.reinit(local_owned_dofs, dsp, mpi_communicator);          //Same 
+	electron_drift_diffusion_matrix.reinit(local_owned_dofs, dsp, mpi_communicator); //Same
 }
 
 //------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -373,15 +383,20 @@ void Problem<dim>::apply_drift_diffusion_boundary_conditions()
 template <int dim>
 void Problem<dim>::solve_drift_diffusion()
 {
-  PETScWrappers::SparseDirectMUMPS A_direct;
+  PETScWrappers::SparseDirectMUMPS solverMUMPS_ion;
+  PETScWrappers::PreconditionBase pb;
+  solverMUMPS_ion.solve(ion_system_matrix, ion_density, ion_rhs, pb)
   //SparseDirectUMFPACK P_direct;
-  P_direct.initialize(ion_system_matrix);     //Initialize memory and call SparseDirectUMFPACK::factorize
-  P_direct.vmult(ion_density, ion_rhs);       //solve Ax = b with exact inv(A). store in ion_density
+  //P_direct.initialize(ion_system_matrix);     //Initialize memory and call SparseDirectUMFPACK::factorize
+  //P_direct.vmult(ion_density, ion_rhs);       //solve Ax = b with exact inv(A). store in ion_density
   constraints.distribute(ion_density);        //apply constrains on ion_density vector
 
-  SparseDirectUMFPACK N_direct;
-  N_direct.initialize(electron_system_matrix);
-  N_direct.vmult(electron_density, electron_rhs);
+  PETScWrappers::SparseDirectMUMPS solverMUMPS_electron;
+  PETScWrappers::PreconditionBase pb;
+  solverMUMPS_electron.solve(electron_system_matrix, electron_density, electron_rhs, pb)
+  //SparseDirectUMFPACK N_direct;
+  //N_direct.initialize(electron_system_matrix);
+  //N_direct.vmult(electron_density, electron_rhs);
   constraints.distribute(electron_density);
 }
 
@@ -417,6 +432,9 @@ void Problem<dim>::output_results(const unsigned int step)
 template <int dim>
 void Problem<dim>::run()
 {   
+	pcout << "Running with PETSc on "
+        << Utilities::MPI::n_mpi_processes(mpi_communicator)         //Return the number of MPI processes there exist in the given communicator object
+        << " MPI rank(s)..." << std::endl;
 	//CREATION OF THE MESH
 	create_mesh();
     
@@ -432,7 +450,7 @@ void Problem<dim>::run()
 	// first step in the output
     output_results(0);
 
-    Vector<double> tmp(ion_density.size());
+    PETScWrappers::MPI::Vector tmp(ion_density.size());    //Forse local_size ??
 
     const double tol = 1.e-9*V_E;
     const unsigned int max_it = 50; //max iterations

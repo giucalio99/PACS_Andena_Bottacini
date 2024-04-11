@@ -39,7 +39,7 @@ void InsIMEX<dim>::setup_dofs()
     owned_partitioning[0] = dof_handler.locally_owned_dofs().get_view(0, dof_u);      //Extract the set of locally owned DoF indices for each component within the mask that are owned by the current processor.
     owned_partitioning[1] = dof_handler.locally_owned_dofs().get_view(dof_u, dof_u + dof_p);
 
-    DoFTools::extract_locally_relevant_dofs(dof_handler,locally_relevant_dofs);     //Extract the set of global DoF indices that are active on the current DoFHandler.
+    DoFTools::extract_locally_relevant_dofs(dof_handler,locally_relevant_dofs);     //Extract the set of global DoF indices that are active on the current DoFHandler. This is the union of DoFHandler::locally_owned_dofs() and the DoF indices on all ghost cells.
     relevant_partitioning.resize(2);
     relevant_partitioning[0] = locally_relevant_dofs.get_view(0, dof_u);
     relevant_partitioning[1] = locally_relevant_dofs.get_view(dof_u, dof_u + dof_p);

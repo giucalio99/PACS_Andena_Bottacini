@@ -40,6 +40,7 @@
 #include <deal.II/distributed/grid_refinement.h>
 #include <deal.II/distributed/solution_transfer.h>
 #include <deal.II/distributed/tria.h>
+#include <deal.II/dofs/dof_renumbering.h>
 
 #include <deal.II/lac/petsc_block_sparse_matrix.h>
 #include <deal.II/lac/petsc_sparse_matrix.h>
@@ -112,7 +113,12 @@ class Problem{
     // Timer: A class that provide a way to measure the CPU time
     Timer timer;
 
-    // PRIVATE METHODS (descriptions in the related .cpp file)
+    //To parallelize
+    IndexSet local_owned_dofs;
+	  IndexSet locally_relevant_dofs;
+    MPI_Comm mpi_communicator;
+
+    ConditionalOStream pcout;                     //A class allows you to print an output stream, useful in parallel computations
 
     // MESH
     void create_mesh();   
