@@ -68,7 +68,7 @@ void InsIMEX<dim>::make_constraints()
     
     const FEValuesExtractors::Vector velocities(0);
     const FEValuesExtractors::Scalar vertical_velocity(1);
-    const FEValuesExtractors::Vector vertical_velocity_and_pressure(1);
+    const FEValuesExtractors::Vector vertical_velocity_and_pressure(1);    
 
     BoundaryValues<dim> BoundaryValueFunction;
 

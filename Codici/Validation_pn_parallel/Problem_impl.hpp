@@ -102,15 +102,15 @@ void Problem<dim>::setup_poisson()
     sparsity_pattern_poisson.copy_from(dsp); // we copy in sparsity_pattern_poisson the pattern created before
     
     // INITIALIZATION OF SYSTEM MATRICES AND RHS
-	system_matrix_poisson.reinit(local_owned_dofs, dsp, mpi_communicator); // Reinitialize the sparse matrix with the given sparsity pattern. The latter tells the matrix how many nonzero elements there need to be reserved.
-    laplace_matrix_poisson.reinit(local_owned_dofs, dsp, mpi_communicator);// As above
-	mass_matrix_poisson.reinit(local_owned_dofs, dsp, mpi_communicator);   // As above
+	system_matrix_poisson.reinit(local_owned_dofs, sparsity_pattern_poisson, mpi_communicator); // Reinitialize the sparse matrix with the given sparsity pattern. The latter tells the matrix how many nonzero elements there need to be reserved.
+    laplace_matrix_poisson.reinit(local_owned_dofs, sparsity_pattern_poisson, mpi_communicator);// As above
+	mass_matrix_poisson.reinit(local_owned_dofs, sparsity_pattern_poisson, mpi_communicator);   // As above
 
 	//If the library is configured to use multithreading, this functions work in parallel.
 	MatrixCreator::create_laplace_matrix(mapping, dof_handler, QTrapezoid<dim>(), laplace_matrix_poisson); // Assemble the Laplace matrix with trapezoidal rule for numerical quadrature
 	MatrixCreator::create_mass_matrix(mapping, dof_handler, QTrapezoid<dim>(), mass_matrix_poisson);       // Assemble the mass matrix with trapezoidal rule for numerical quadrature
 
-	poisson_rhs.reinit(dof_handler.n_dofs()); // initialize the rhs vector
+	poisson_rhs.reinit(local_owned_dofs, mpi_communicator); // initialize the rhs vector
 }
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -164,10 +164,9 @@ void Problem<dim>::assemble_nonlinear_poisson()
 // weare computing the update solution of the newton method related to the Poisson problem
 template <int dim>
 void Problem<dim>::solve_poisson()
-{
+{	
   PETScWrappers::SparseDirectMUMPS solverMUMPS;
-  PETScWrappers::PreconditionBase pb;
-  solverMUMPS.solve(system_matrix_poisson, poisson_newton_update, poisson_rhs, pb) 
+  solverMUMPS.solve(system_matrix_poisson, poisson_newton_update, poisson_rhs);
   //SparseDirectUMFPACK A_direct;
   //A_direct.initialize(system_matrix_poisson);         //initialize the matrix of the Poisson system
   //A_direct.vmult(poisson_newton_update, poisson_rhs); //this function solve system Ax = b -> x = inv(A)b using the EXACT inverse of matrix system_matrix_poisson. store the result in poisson_newton_update
@@ -384,16 +383,14 @@ template <int dim>
 void Problem<dim>::solve_drift_diffusion()
 {
   PETScWrappers::SparseDirectMUMPS solverMUMPS_ion;
-  PETScWrappers::PreconditionBase pb;
-  solverMUMPS_ion.solve(ion_system_matrix, ion_density, ion_rhs, pb)
+  solverMUMPS_ion.solve(ion_system_matrix, ion_density, ion_rhs);
   //SparseDirectUMFPACK P_direct;
   //P_direct.initialize(ion_system_matrix);     //Initialize memory and call SparseDirectUMFPACK::factorize
   //P_direct.vmult(ion_density, ion_rhs);       //solve Ax = b with exact inv(A). store in ion_density
   constraints.distribute(ion_density);        //apply constrains on ion_density vector
 
   PETScWrappers::SparseDirectMUMPS solverMUMPS_electron;
-  PETScWrappers::PreconditionBase pb;
-  solverMUMPS_electron.solve(electron_system_matrix, electron_density, electron_rhs, pb)
+  solverMUMPS_electron.solve(electron_system_matrix, electron_density, electron_rhs);
   //SparseDirectUMFPACK N_direct;
   //N_direct.initialize(electron_system_matrix);
   //N_direct.vmult(electron_density, electron_rhs);
@@ -450,7 +447,7 @@ void Problem<dim>::run()
 	// first step in the output
     output_results(0);
 
-    PETScWrappers::MPI::Vector tmp(ion_density.size());    //Forse local_size ??
+    PETScWrappers::MPI::Vector tmp();    //Forse local_size ??
 
     const double tol = 1.e-9*V_E;
     const unsigned int max_it = 50; //max iterations

@@ -1,3 +1,0 @@
-TODO:
-
-- parallelizzare è possbile con questo codice che è stato fatto da MatMes?

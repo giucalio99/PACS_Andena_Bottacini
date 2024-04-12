@@ -49,6 +49,7 @@
 #include <deal.II/lac/petsc_solver.h>
 #include <deal.II/base/utilities.h>
 #include <deal.II/lac/petsc_solver.h>   //Add to use MUMps direct solver
+#include <deal.II/base/mpi.h>
 
 #include <fstream>
 #include <cmath>
@@ -70,7 +71,7 @@ class Problem{
     // PRIVATE DATA MEMBERS
 
     // Elements that define the mesh and FEM order
-    parallel::distributed::Triangulation<dim> triangulation; //This's a collection of cells that, jointly, cover the domain on which one typically wants to solve a partial differential equation. 
+    parallel::distributed::Triangulation<dim> &triangulation; //This's a collection of cells that, jointly, cover the domain on which one typically wants to solve a partial differential equation. 
     FE_Q<dim>       fe;               //Implementation of a scalar Lagrange finite element Qp that yields the finite element space of continuous, piecewise polynomials of degree p in each coordinate direction.
     DoFHandler<dim> dof_handler;      //Given a triangulation and a description of a finite element, this class enumerates degrees of freedom on all vertices, edges, faces, and cells of the triangulation. As a result, it also provides a basis for a discrete space, which dof live on which cell
     MappingQ1<dim>  mapping;          //The mapping implemented by this class maps the reference (unit) cell to a general grid cell with straight lines in d dimensions.

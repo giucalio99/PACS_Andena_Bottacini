@@ -48,7 +48,8 @@
 
 #include <deal.II/grid/grid_in.h>                //Aggiunto da me
 #include <deal.II/base/geometry_info.h>          //Aggiunto da me
-#include <deal.II/grid/manifold_lib.h> // To use manifolds
+#include <deal.II/grid/manifold_lib.h>           // To use manifolds
+#include <deal.II/base/mpi.h>                    //Aggiunto da me 
 
 #include <deal.II/dofs/dof_accessor.h>
 #include <deal.II/dofs/dof_handler.h>

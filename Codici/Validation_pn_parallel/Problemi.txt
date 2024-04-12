@@ -1,0 +1,4 @@
+Problemi:
+    - mpi_communicator è di un tipo diverso (credo), da problemi in tutti i reinit
+    - create_mass_matrix e create_laplace_matrix non supportano cose di tipo PETSc::MPI
+    - più altre cose
