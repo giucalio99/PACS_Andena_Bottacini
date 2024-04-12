@@ -1,3 +1,5 @@
 TODO:
 
 - parallelizzare è possbile con questo codice che è stato fatto da MatMes?
+- step 17 18 per parallelo + vedi NS per capire come usare le funzioni
+- cambiare compilatore ?? ( ardagna docet)

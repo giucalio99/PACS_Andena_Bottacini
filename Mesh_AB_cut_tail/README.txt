@@ -1,4 +1,5 @@
 Original code written by Tommaso Andena and Giacomo Bottacini. Politecnico di Milano a.a 2023/2024.
+This version generate ad airfoil with a cut in the end of the trailing edge
 
 vedere il file:"MyDataStruct.hpp" per il significato dei parameteri specificati nel file .json
 
