@@ -123,12 +123,13 @@ void Problem<dim>::assemble_nonlinear_poisson()
 
   // ASSEMBLE MATRICES
   system_matrix_poisson = 0; //sets all elements of the matrix to zero, but keep the sparsity pattern previously used.
-  PETScWrappers::MPI::SparseMatrix ion_mass_matrix(sparsity_pattern_poisson); // We initialized the new ion_mass_matrix with our sparsity pattern
+  PETScWrappers::MPI::SparseMatrix ion_mass_matrix; // We initialized the new ion_mass_matrix with our sparsity pattern
+  ion_mass_matrix.reinit(local_owned_dofs, sparsity_pattern_poisson, mpi_communicator);
   ion_mass_matrix = 0; // and then set all the elments to zero
  
   // compute the ion mass matrix
   for (unsigned int i = 0; i < old_ion_density.size(); ++i){
-	  ion_mass_matrix(i,i) = mass_matrix_poisson(i,i) * (old_ion_density(i) + old_electron_density(i));
+	  ion_mass_matrix.set(i,i, mass_matrix_poisson(i,i) * (old_ion_density(i) + old_electron_density(i)));
   }
 
   system_matrix_poisson.add(q0 / V_E, ion_mass_matrix);  // A += factor * B with the passed values
@@ -139,8 +140,8 @@ void Problem<dim>::assemble_nonlinear_poisson()
 
   // ASSEMBLE RHS
   poisson_rhs = 0; // set all the values to zero
-  PETScWrappers::MPI::Vector tmp(dof_handler.n_dofs()); //temporary vector of dimension n_dof
-  PETScWrappers::MPI::Vector doping_and_ions(dof_handler.n_dofs()); // create a new vector of dimension n_dof
+  PETScWrappers::MPI::Vector tmp; //temporary vector of dimension n_dof
+  PETScWrappers::MPI::Vector doping_and_ions(local_owned_dofs, locally_relevant_dofs, mpi_communicator); // create a new vector of dimension n_dof
   VectorTools::interpolate(mapping,dof_handler, DopingValues<dim>(), doping_and_ions); // We interpolate the previusly created vector with the initial values of Doping provided by DopingValues
 
   doping_and_ions -= old_electron_density;
@@ -165,7 +166,8 @@ void Problem<dim>::assemble_nonlinear_poisson()
 template <int dim>
 void Problem<dim>::solve_poisson()
 {	
-  PETScWrappers::SparseDirectMUMPS solverMUMPS;
+  SolverControl sc_p;
+  PETScWrappers::SparseDirectMUMPS solverMUMPS(sc_p);
   solverMUMPS.solve(system_matrix_poisson, poisson_newton_update, poisson_rhs);
   //SparseDirectUMFPACK A_direct;
   //A_direct.initialize(system_matrix_poisson);         //initialize the matrix of the Poisson system
@@ -382,14 +384,15 @@ void Problem<dim>::apply_drift_diffusion_boundary_conditions()
 template <int dim>
 void Problem<dim>::solve_drift_diffusion()
 {
-  PETScWrappers::SparseDirectMUMPS solverMUMPS_ion;
+  SolverControl sc_dd;
+  PETScWrappers::SparseDirectMUMPS solverMUMPS_ion(sc_dd);
   solverMUMPS_ion.solve(ion_system_matrix, ion_density, ion_rhs);
   //SparseDirectUMFPACK P_direct;
   //P_direct.initialize(ion_system_matrix);     //Initialize memory and call SparseDirectUMFPACK::factorize
   //P_direct.vmult(ion_density, ion_rhs);       //solve Ax = b with exact inv(A). store in ion_density
   constraints.distribute(ion_density);        //apply constrains on ion_density vector
 
-  PETScWrappers::SparseDirectMUMPS solverMUMPS_electron;
+  PETScWrappers::SparseDirectMUMPS solverMUMPS_electron(sc_dd);
   solverMUMPS_electron.solve(electron_system_matrix, electron_density, electron_rhs);
   //SparseDirectUMFPACK N_direct;
   //N_direct.initialize(electron_system_matrix);
@@ -447,7 +450,7 @@ void Problem<dim>::run()
 	// first step in the output
     output_results(0);
 
-    PETScWrappers::MPI::Vector tmp();    //Forse local_size ??
+    PETScWrappers::MPI::Vector tmp;    //Forse local_size ??
 
     const double tol = 1.e-9*V_E;
     const unsigned int max_it = 50; //max iterations

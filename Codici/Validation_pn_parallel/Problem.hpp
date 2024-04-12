@@ -50,6 +50,7 @@
 #include <deal.II/base/utilities.h>
 #include <deal.II/lac/petsc_solver.h>   //Add to use MUMps direct solver
 #include <deal.II/base/mpi.h>
+#include <deal.II/lac/solver_control.h>
 
 #include <fstream>
 #include <cmath>
