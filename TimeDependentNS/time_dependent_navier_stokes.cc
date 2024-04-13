@@ -221,7 +221,7 @@ Point<dim-1>  CollectorGeometry<dim>::pull_back(const Point<dim> &p) const      
 
  void create_triangulation(parallel::distributed::Triangulation<2> &tria, const MyDataStruct s_data)
 { 
-  const std::string filename = "../../Meshes/REAL_EMITTER.msh";
+  const std::string filename = "../../Mesh_AB_cut_tail/example.msh";
   cout << "Reading from " << filename << std::endl;
   std::ifstream input_file(filename);
   GridIn<2>       grid_in;
@@ -272,9 +272,12 @@ inFile >> json_data;
 // Close the file stream
 inFile.close();
 
-// Access the data from the JSON object and store them in MyDataStruct object
-
 MyDataStruct s_data;  //structured data
+
+// Access the data from the JSON object and store them in MyDataStruct object
+s_data.BL_ratio = json_data["BL_emitter_ratio"];
+s_data.BL_size = json_data["BL_emitter_size"];
+s_data.BL_thickness=json_data["BL_emitter_thickness"];
 
 s_data.airfoil_type = json_data["airfoil_type"];       
 s_data.last_two_digit = json_data["last_2_digit_NACA"];           
@@ -284,9 +287,9 @@ s_data.distance_emitter_collector=json_data["distance_emitter_collector"];
 s_data.distance_Tedge_outlet=json_data["distance_Tedge_outlet"];
 s_data.distance_emitter_inlet=json_data["distance_emitter_inlet"];
 s_data.distance_emitter_up_bottom=json_data["distance_emitter_up_bottom"];
-s_data.cylinder_emitter_radius=json_data["cylinder_emitter_radius"];
 s_data.box_profile_semi_minor_axis=json_data["box_profile_semi_minor_axis"];
 s_data.box_profile_semi_major_axis=json_data["box_profile_semi_major_axis"];
+
 
 
 
