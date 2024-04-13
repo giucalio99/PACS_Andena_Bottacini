@@ -2,3 +2,6 @@ Problemi:
     - mpi_communicator è di un tipo diverso (credo), da problemi in tutti i reinit
     - create_mass_matrix e create_laplace_matrix non supportano cose di tipo PETSc::MPI
     - più altre cose
+    - va passato per reference tria parallela nel constructor ? step-40 tutorial non la mette  
+    - con la tag //CODICE NUOVO ho aggiunto delle righe di codice prendendo spunto dallo step 40
+    - in mezzo al codice ci sono domande tommy e domande jack 

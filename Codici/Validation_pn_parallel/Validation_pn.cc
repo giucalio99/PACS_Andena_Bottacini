@@ -70,7 +70,7 @@
 int main(int argc, char *argv[])
 {
   try
-    {
+    {                                       // in step 40, aggiunge anche mesh_smooting a tria
       Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);            //Initialize MPI (and, if deal.II was configured to use it, PETSc) and set the maximum number of threads used by deal.II to the given parameter.
       parallel::distributed::Triangulation<2> tria(MPI_COMM_WORLD);
       Problem<2> drift_diffusion(tria);

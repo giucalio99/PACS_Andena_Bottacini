@@ -37,9 +37,9 @@
 #include <deal.II/numerics/matrix_tools.h> // For Laplace Matrix
 
 //To parallelize
-#include <deal.II/distributed/grid_refinement.h>
+#include <deal.II/distributed/grid_refinement.h>     //tools to operate on parallel distributed triangulations
 #include <deal.II/distributed/solution_transfer.h>
-#include <deal.II/distributed/tria.h>
+#include <deal.II/distributed/tria.h>                //parallel distributed triangulation
 #include <deal.II/dofs/dof_renumbering.h>
 
 #include <deal.II/lac/petsc_block_sparse_matrix.h>
@@ -50,7 +50,10 @@
 #include <deal.II/base/utilities.h>
 #include <deal.II/lac/petsc_solver.h>   //Add to use MUMps direct solver
 #include <deal.II/base/mpi.h>
+#include <deal.II/base/conditional_ostream.h>  // serve per usare ConditionalOStream pcout
 #include <deal.II/lac/solver_control.h>
+#include <deal.II/base/index_set.h> //serve per la classe indexset
+#include <deal.II/lac/sparsity_tools.h> // per distribute_sparsity_pattern
 
 #include <fstream>
 #include <cmath>
@@ -79,16 +82,18 @@ class Problem{
     unsigned int step_number;
     
     // AffineConstraints: This class deal with constrains on dof (eg: imposing Dir BCs we are constraining the value of the dof on the boundary)
+    // the first is related to the drift diffusion system, the last two to the Poisson problem 
     AffineConstraints<double> constraints;
     AffineConstraints<double> constraints_poisson;
     AffineConstraints<double> zero_constraints_poisson;
     
     // SparseMatrix: This class implements the functionality to store matrix entry values in the locations denoted by a SparsityPattern.
+    // The namescope PETScWrappers is needed to perform the computations in parallel.
     // The elements of a SparsityPattern, corresponding to the places where SparseMatrix objects can store nonzero entries, are stored row-by-row
     PETScWrappers::MPI::SparseMatrix laplace_matrix_poisson;
     PETScWrappers::MPI::SparseMatrix mass_matrix_poisson;
     PETScWrappers::MPI::SparseMatrix system_matrix_poisson;
-    SparsityPattern      sparsity_pattern_poisson;  
+    SparsityPattern     sparsity_pattern_poisson;  
 
     PETScWrappers::MPI::SparseMatrix ion_system_matrix;
     PETScWrappers::MPI::SparseMatrix mass_matrix;
@@ -96,7 +101,7 @@ class Problem{
 
     PETScWrappers::MPI::SparseMatrix electron_system_matrix;
     PETScWrappers::MPI::SparseMatrix electron_drift_diffusion_matrix;
-    SparsityPattern      sparsity_pattern;
+    SparsityPattern     sparsity_pattern;
     
     // Vector: A class that represents a vector of numerical elements
     PETScWrappers::MPI::Vector poisson_newton_update;
@@ -111,16 +116,19 @@ class Problem{
     PETScWrappers::MPI::Vector electron_density;
     PETScWrappers::MPI::Vector electron_rhs;
     
-    
     // Timer: A class that provide a way to measure the CPU time
     Timer timer;
 
-    //To parallelize
-    IndexSet local_owned_dofs;
-	  IndexSet locally_relevant_dofs;
-    MPI_Comm mpi_communicator;
+    // TO PARALLELIZE
+    IndexSet local_owned_dofs;       //IndexSet is a class that represents a subset of indices among a larger set. For example, it can be used to denote the set of degrees of freedom that belongs to a particular subdomain.
+	  IndexSet locally_relevant_dofs; 
+    //The presence of two IndexSet objects that denote which sets of degrees of freedom (and associated elements of solution and right hand side vectors)
+    //we own on the current processor and which we need (as ghost elements) for the algorithms in this program to work.
+    MPI_Comm mpi_communicator;       //describes the set of processors we want this code to run on. In practice, this will be MPI_COMM_WORLD
+    //const unsigned int n_mpi_processes;    deal ii suggerisce di mettere dentro la classe size e rank 
+    //const unsigned int this_mpi_process;
 
-    ConditionalOStream pcout;                     //A class allows you to print an output stream, useful in parallel computations
+    ConditionalOStream pcout;  //A class allows you to print an output stream, basically it prints only the output linked to the MPI_processor of rank zero "this_mpi_processor=0"
 
     // MESH
     void create_mesh();   

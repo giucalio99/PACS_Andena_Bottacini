@@ -72,16 +72,21 @@ void Problem<dim>::setup_poisson()
 	// INITIALIZATION OF THE DOF AND VECTORS
 	dof_handler.distribute_dofs(fe);  //Go through the triangulation and "distribute" the dof needed for the given finite element. We also enumerate them whereever they are (internal or boundary)
 	DoFRenumbering::Cuthill_McKee(dof_handler);  //We want particular distribution of dofs
-
+    
+	// now we want provide to the index sets information about which degrees of freedom are owned by the current processor
+	// (this information will be used to initialize solution and right hand side vectors, and the system matrix, indicating 
+	// which elements to store on the current processor and which to expect to be stored somewhere else); and an index set that indicates 
+	// which degrees of freedom are locally relevant (i.e. live on cells that the current processor owns or on the layer of ghost cells around the locally owned cells; we need all of these degrees of freedom, for example, to estimate the error on the local cells).
 	local_owned_dofs = dof_handler.locally_owned_dofs();
 	DoFTools::extract_locally_relevant_dofs(dof_handler,locally_relevant_dofs);   
 
-
+    // initialize the LOCAL vectors
 	potential.reinit(local_owned_dofs, locally_relevant_dofs, mpi_communicator); // Reinit as a vector with ghost elements
-	poisson_newton_update.reinit(local_owned_dofs, mpi_communicator);  // Reinit as a vector without ghost elements
+	poisson_newton_update.reinit(local_owned_dofs, mpi_communicator);            // Reinit as a vector without ghost elements
     
 	// CONSTRAIN PROBLEM AND BOUNDARY VALUES
 	constraints_poisson.clear();  // Reset the flag determining whether new entries are accepted or not
+	// CODICE NUOVO  constraints_poisson.reinit(locally_relevant_dofs);
 	DoFTools::make_hanging_node_constraints(dof_handler, constraints_poisson); // Compute the constraints resulting from the presence of hanging nodes. We put the result in constraints_poisson
 	VectorTools::interpolate_boundary_values(dof_handler, 1, Functions::ConstantFunction<dim>(V_E*log(N1/N_0)), constraints_poisson); // Set the values of constraints_poisson on the left edge boundary of the domain
 	VectorTools::interpolate_boundary_values(dof_handler, 2, Functions::ConstantFunction<dim>(V_E*log(N2/N_0)), constraints_poisson); // Set the values of constraints_poisson on the right edge boundary of the domain
@@ -89,15 +94,30 @@ void Problem<dim>::setup_poisson()
 
 	// Used for the update term in Newton's method
 	zero_constraints_poisson.clear();  // As before but on zero_constraints_poisson
+	// CODICE NUOVO zero_constraints_poisson.reinit(locally_relevant_dofs);
 	DoFTools::make_hanging_node_constraints(dof_handler, zero_constraints_poisson);
 	VectorTools::interpolate_boundary_values(dof_handler, 1, Functions::ZeroFunction<dim>(), zero_constraints_poisson); // Set the values of zero_constraints_poisson on the left edge boundary of the domain to zero
 	VectorTools::interpolate_boundary_values(dof_handler, 2, Functions::ZeroFunction<dim>(), zero_constraints_poisson); // Set the values of zero_constraints_poisson on the right edge boundary of the domain to zero (homo Dirichlet)
 	zero_constraints_poisson.close();
     
 	// SPARSITY PATTERN
+	                           //nel tutorial passa locally_relevant_dofs!(solo la prima)
 	DynamicSparsityPattern dsp(dof_handler.n_dofs()); // it mostly represents a SparsityPattern object that is kept compressed at all times, memory reason. We initialize a square pattern of size n_dof
 	DoFTools::make_sparsity_pattern(dof_handler, dsp, constraints_poisson, true); // Compute which entries of a matrix built on the given dof_handler may possibly be nonzero, and create a sparsity pattern object that represents these nonzero locations.
     
+    // al posto di copiare usa e inizializza con:
+
+	/*      SparsityTools::distribute_sparsity_pattern(dsp,
+                                                 dof_handler.locally_owned_dofs(),
+                                                 mpi_communicator,
+                                                 locally_relevant_dofs);
+												 
+			system_matrix.reinit(locally_owned_dofs,
+                           locally_owned_dofs,
+                           dsp,
+                           mpi_communicator);*/
+
+
 	// at this point we have in dsp the pattern related to the problem 
     sparsity_pattern_poisson.copy_from(dsp); // we copy in sparsity_pattern_poisson the pattern created before
     
@@ -166,17 +186,21 @@ void Problem<dim>::assemble_nonlinear_poisson()
 template <int dim>
 void Problem<dim>::solve_poisson()
 {	
+                     // come mai non passiamo nulla a sc_p tipo: " SolverControl solver_control(dof_handler.n_dofs(), 1e-12); "
   SolverControl sc_p;
-  PETScWrappers::SparseDirectMUMPS solverMUMPS(sc_p);
+  PETScWrappers::SparseDirectMUMPS solverMUMPS(sc_p);     // choice of the solver, MUMPS in this case
   solverMUMPS.solve(system_matrix_poisson, poisson_newton_update, poisson_rhs);
   //SparseDirectUMFPACK A_direct;
   //A_direct.initialize(system_matrix_poisson);         //initialize the matrix of the Poisson system
   //A_direct.vmult(poisson_newton_update, poisson_rhs); //this function solve system Ax = b -> x = inv(A)b using the EXACT inverse of matrix system_matrix_poisson. store the result in poisson_newton_update
 
   zero_constraints_poisson.distribute(poisson_newton_update); //Set all constrained degrees of freedom to values so that the constraints are satisfied, basically we impose the zero constarins in poisson_newton_update vector
+
 }
 
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// in teoria qua non si dovrebbe parallelizzare nulla siccome ogni processore farà girare questa funzione sul proprio
+// sub set dei vettori e dof (immagino)
 
 // given the tolerance and the max number of iterations this method solves the Poissin newton system
 template <int dim>
@@ -223,7 +247,7 @@ void Problem<dim>::setup_drift_diffusion()
 {   
 	//NB non richiama/riinizializza dof handler siccome mi aspetto di chiamare prima setup Poisson (vedi run()) 
 	ion_density.reinit(local_owned_dofs, locally_relevant_dofs, mpi_communicator);           //Resize the dimension of the vector ion_density to the number of the dof (unsigned int)
-	electron_density.reinit(local_owned_dofs, locally_relevant_dofs, mpi_communicator);     //Resize the dimension of the vector electron_density to the number of the dof (unsigned int)
+	electron_density.reinit(local_owned_dofs, locally_relevant_dofs, mpi_communicator);      //Resize the dimension of the vector electron_density to the number of the dof (unsigned int)
     old_ion_density.reinit(local_owned_dofs, locally_relevant_dofs, mpi_communicator);       //Resize the dimension of the vector old_ion_density to the number of the dof (unsigned int)
 	old_electron_density.reinit(local_owned_dofs, locally_relevant_dofs, mpi_communicator);  //Resize the dimension of the vector old_electron_density to the number of the dof (unsigned int)
 
@@ -248,7 +272,7 @@ void Problem<dim>::setup_drift_diffusion()
 
 //This method assemble the drift diffusion matrix (da rivedere con tesi riletta)
 template <int dim>
-void Problem<dim>::assemble_drift_diffusion_matrix()
+void Problem<dim>::assemble_drift_diffusion_matrix() //del singolo processore
 {   
 	// we initialize as null all the vectors and the matrices of the system
 	electron_rhs = 0;
@@ -344,7 +368,7 @@ void Problem<dim>::assemble_drift_diffusion_matrix()
 
 				}
 
-				constraints.distribute_local_to_global(A, cell_rhs,  A_local_dof_indices, drift_diffusion_matrix, ion_rhs);  //This function simultaneously writes elements into the global matrix vector, according to the constraints specified by the calling AffineConstraints
+				constraints.distribute_local_to_global(A, cell_rhs,  A_local_dof_indices, drift_diffusion_matrix, ion_rhs);  //This function simultaneously writes elements into the "global" ( inteso come totale del processore) matrix vector, according to the constraints specified by the calling AffineConstraints
 				constraints.distribute_local_to_global(B, cell_rhs,  B_local_dof_indices, drift_diffusion_matrix, ion_rhs);  //Same
 
 				constraints.distribute_local_to_global(neg_A, cell_rhs,  A_local_dof_indices, electron_drift_diffusion_matrix, electron_rhs); //Same
@@ -526,7 +550,7 @@ void Problem<dim>::run()
 
 //############################ HELPER FUNCTION DEFINITION #########################################################################################################pragma endregion
 
-// This function is used compute_triangle_matrix, another helper function it
+// This function is used compute_triangle_matrix, another helper function
 void bernoulli (double x, double &bp, double &bn)
 {
   const double xlim = 1.0e-2;
@@ -567,7 +591,7 @@ void bernoulli (double x, double &bp, double &bn)
       return;
     }
 
-  // SMALL VALUES CASE (absolute value ox less than 0.01 but not null)
+  // SMALL VALUES CASE (absolute value of x less than 0.01 but not null)
   if (ax <= xlim &&  ax != 0.0)
     {
       double jj = 1.0;
@@ -646,7 +670,7 @@ Tensor<1,2> face_normal(const Point<2> a, const Point<2> b) {
 
 // -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-// I pass 3 points, 3 + 1 constants double
+// I pass 3 points, 3 + 1 constants double  
 // this method create the local full matrix when we are assebling the drift diffusion matrix
 FullMatrix<double> compute_triangle_matrix(const Point<2> a, const Point<2> b, const Point<2> c, const double alpha12, const double alpha23, const double alpha31, const double D)
 {
@@ -689,3 +713,6 @@ FullMatrix<double> compute_triangle_matrix(const Point<2> a, const Point<2> b, c
 
 	return tria_matrix;
 }
+
+//NB queste ultime helper function utilizzano tutte punti senza reference, forse bisognrebbe metterle in modo tale da
+// eliminare copie inutili
