@@ -86,12 +86,6 @@ void InsIMEX<dim>::make_constraints()
                                             Functions::ZeroFunction<dim>(dim+1),
                                             nonzero_NS_constraints,
                                             fe.component_mask(velocities));
-    // VectorTools::interpolate_boundary_values(dof_handler,
-    //                                         3,
-    //                                         Functions::ZeroFunction<dim>(dim+1),
-    //                                         nonzero_NS_constraints,
-    //                                         fe.component_mask(velocities));
-
     VectorTools::interpolate_boundary_values(dof_handler, 
                                             1,                    // Inlet
                                             BoundaryValues<dim>(), // Functions::ZeroFunction<dim>(dim+1), 
@@ -99,11 +93,11 @@ void InsIMEX<dim>::make_constraints()
                                             fe.component_mask(velocities));
     
 
-    VectorTools::interpolate_boundary_values(dof_handler,
-                                            2,                    // Outlet
-                                            BoundaryValues<dim>(), // Functions::ZeroFunction<dim>(dim+1),//BoundaryValues<dim>()
-                                            nonzero_NS_constraints,
-                                            fe.component_mask(vertical_velocity_and_pressure));
+    // VectorTools::interpolate_boundary_values(dof_handler,
+    //                                         2,                    // Outlet
+    //                                         Functions::ZeroFunction<dim>(dim+1),//BoundaryValues<dim>()
+    //                                         nonzero_NS_constraints,
+    //                                         fe.component_mask(vertical_velocity_and_pressure));
 
 
 
@@ -124,21 +118,16 @@ void InsIMEX<dim>::make_constraints()
                                             Functions::ZeroFunction<dim>(dim+1),
                                             zero_NS_constraints,
                                             fe.component_mask(velocities));
-    // VectorTools::interpolate_boundary_values(dof_handler,
-    //                                         3,
-    //                                         Functions::ZeroFunction<dim>(dim+1),
-    //                                         zero_NS_constraints,
-    //                                         fe.component_mask(velocities));
     VectorTools::interpolate_boundary_values(dof_handler,
                                             1,
                                             Functions::ZeroFunction<dim>(dim+1),
                                             zero_NS_constraints,
                                             fe.component_mask(velocities));
-    VectorTools::interpolate_boundary_values(dof_handler,
-                                            2, 
-                                            Functions::ZeroFunction<dim>(dim+1),
-                                            zero_NS_constraints,
-                                            fe.component_mask(vertical_velocity_and_pressure));
+    // VectorTools::interpolate_boundary_values(dof_handler,
+    //                                         2, 
+    //                                         Functions::ZeroFunction<dim>(dim+1),
+    //                                         zero_NS_constraints,
+    //                                         fe.component_mask(vertical_velocity_and_pressure));
                                              
 
     nonzero_NS_constraints.close();         //After closing, no more entries are accepted
@@ -294,8 +283,12 @@ void InsIMEX<dim>::assemble(bool use_nonzero_constraints,
                             div_phi_u[i] * phi_p[j] -
                             phi_p[i] * div_phi_u[j] +
                             gamma * div_phi_u[j] * div_phi_u[i] +
-                            phi_u[i] * phi_u[j] / time.get_delta_t()) *
+                            phi_u[i] * phi_u[j] / time.get_delta_t()
+                            //+ current_velocity_gradients[q] * phi_u[j] * phi_u[i] +
+                            //grad_phi_u[j] * current_velocity_values[q] * phi_u[i]
+                            ) *
                             fe_values.JxW(q);
+
                             local_mass_matrix(i, j) +=
                             (phi_u[i] * phi_u[j] + phi_p[i] * phi_p[j]) *
                             fe_values.JxW(q);

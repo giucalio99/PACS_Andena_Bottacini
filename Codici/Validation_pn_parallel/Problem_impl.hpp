@@ -102,29 +102,19 @@ void Problem<dim>::setup_poisson()
     
 	// SPARSITY PATTERN
 	                           //nel tutorial passa locally_relevant_dofs!(solo la prima)
-	DynamicSparsityPattern dsp(dof_handler.n_dofs()); // it mostly represents a SparsityPattern object that is kept compressed at all times, memory reason. We initialize a square pattern of size n_dof
+	DynamicSparsityPattern dsp(locally_relevant_dofs); // it mostly represents a SparsityPattern object that is kept compressed at all times, memory reason. We initialize a square pattern of size n_dof
 	DoFTools::make_sparsity_pattern(dof_handler, dsp, constraints_poisson, true); // Compute which entries of a matrix built on the given dof_handler may possibly be nonzero, and create a sparsity pattern object that represents these nonzero locations.
     
     // al posto di copiare usa e inizializza con:
 
-	/*      SparsityTools::distribute_sparsity_pattern(dsp,
-                                                 dof_handler.locally_owned_dofs(),
-                                                 mpi_communicator,
-                                                 locally_relevant_dofs);
+	SparsityTools::distribute_sparsity_pattern(dsp, dof_handler.locally_owned_dofs(), mpi_communicator, locally_relevant_dofs);
 												 
-			system_matrix.reinit(locally_owned_dofs,
-                           locally_owned_dofs,
-                           dsp,
-                           mpi_communicator);*/
-
-
-	// at this point we have in dsp the pattern related to the problem 
-    sparsity_pattern_poisson.copy_from(dsp); // we copy in sparsity_pattern_poisson the pattern created before
+	system_matrix_poisson.reinit(local_owned_dofs, local_owned_dofs, dsp, mpi_communicator);
     
     // INITIALIZATION OF SYSTEM MATRICES AND RHS
-	system_matrix_poisson.reinit(local_owned_dofs, sparsity_pattern_poisson, mpi_communicator); // Reinitialize the sparse matrix with the given sparsity pattern. The latter tells the matrix how many nonzero elements there need to be reserved.
-    laplace_matrix_poisson.reinit(local_owned_dofs, sparsity_pattern_poisson, mpi_communicator);// As above
-	mass_matrix_poisson.reinit(local_owned_dofs, sparsity_pattern_poisson, mpi_communicator);   // As above
+	//system_matrix_poisson.reinit(local_owned_dofs, sparsity_pattern_poisson, mpi_communicator); // Reinitialize the sparse matrix with the given sparsity pattern. The latter tells the matrix how many nonzero elements there need to be reserved.
+    laplace_matrix_poisson.reinit(local_owned_dofs, local_owned_dofs, dsp, mpi_communicator);// As above
+	mass_matrix_poisson.reinit(local_owned_dofs, local_owned_dofs, dsp, mpi_communicator);   // As above
 
 	//If the library is configured to use multithreading, this functions work in parallel.
 	MatrixCreator::create_laplace_matrix(mapping, dof_handler, QTrapezoid<dim>(), laplace_matrix_poisson); // Assemble the Laplace matrix with trapezoidal rule for numerical quadrature
@@ -140,11 +130,14 @@ void Problem<dim>::setup_poisson()
 template <int dim>
 void Problem<dim>::assemble_nonlinear_poisson()
 {
-
+  DynamicSparsityPattern dsp_poisson(locally_relevant_dofs);
+  DoFTools::make_sparsity_pattern(dof_handler, dsp_poisson, constraints_poisson, true);
+  SparsityTools::distribute_sparsity_pattern(dsp_poisson, dof_handler.locally_owned_dofs(), mpi_communicator, locally_relevant_dofs);
+	
   // ASSEMBLE MATRICES
   system_matrix_poisson = 0; //sets all elements of the matrix to zero, but keep the sparsity pattern previously used.
   PETScWrappers::MPI::SparseMatrix ion_mass_matrix; // We initialized the new ion_mass_matrix with our sparsity pattern
-  ion_mass_matrix.reinit(local_owned_dofs, sparsity_pattern_poisson, mpi_communicator);
+  ion_mass_matrix.reinit(local_owned_dofs, local_owned_dofs, dsp_poisson, mpi_communicator);
   ion_mass_matrix = 0; // and then set all the elments to zero
  
   // compute the ion mass matrix
@@ -186,8 +179,7 @@ void Problem<dim>::assemble_nonlinear_poisson()
 template <int dim>
 void Problem<dim>::solve_poisson()
 {	
-                     // come mai non passiamo nulla a sc_p tipo: " SolverControl solver_control(dof_handler.n_dofs(), 1e-12); "
-  SolverControl sc_p;
+  SolverControl sc_p;     // come mai non passiamo nulla a sc_p tipo: " SolverControl solver_control(dof_handler.n_dofs(), 1e-12); "
   PETScWrappers::SparseDirectMUMPS solverMUMPS(sc_p);     // choice of the solver, MUMPS in this case
   solverMUMPS.solve(system_matrix_poisson, poisson_newton_update, poisson_rhs);
   //SparseDirectUMFPACK A_direct;
@@ -202,7 +194,7 @@ void Problem<dim>::solve_poisson()
 // in teoria qua non si dovrebbe parallelizzare nulla siccome ogni processore farà girare questa funzione sul proprio
 // sub set dei vettori e dof (immagino)
 
-// given the tolerance and the max number of iterations this method solves the Poissin newton system
+// given the tolerance and the max number of iterations this method solves the Poisson newton system
 template <int dim>
 void Problem<dim>::newton_iteration_poisson(const double tolerance, const unsigned int max_n_line_searches)
   {
@@ -255,17 +247,17 @@ void Problem<dim>::setup_drift_diffusion()
 	DoFTools::make_hanging_node_constraints(dof_handler, constraints); // Compute the constraints resulting from the presence of hanging nodes. We put the result in constraints
 	constraints.close();   //close the object
 
-	DynamicSparsityPattern dsp(dof_handler.n_dofs()); // it mostly represents a SparsityPattern object that is kept compressed at all times, memory reason. We initialize a square pattern of size n_dof
+	DynamicSparsityPattern dsp(locally_relevant_dofs); // it mostly represents a SparsityPattern object that is kept compressed at all times, memory reason. We initialize a square pattern of size n_dof
 	DoFTools::make_sparsity_pattern(dof_handler, dsp, constraints, false); // Compute which entries of a matrix built on dof_handler may possibly be nonzero, and create a sparsity pattern object that represents these nonzero locations, we put it in dsp
 	sparsity_pattern.copy_from(dsp);  //copy sparsity pattern from dsp
 
 	ion_rhs.reinit(local_owned_dofs, locally_relevant_dofs, mpi_communicator);             //Resize the dimension of ion_rhs
 	electron_rhs.reinit(local_owned_dofs, locally_relevant_dofs, mpi_communicator);        //Resize the dimension of electron_rhs
 
-	ion_system_matrix.reinit(local_owned_dofs, dsp, mpi_communicator);               //Reinitialize sparse matrix ion_system_matrix with the given sparsity pattern. The latter tells the matrix how many nonzero elements there need to be reserved.
-	electron_system_matrix.reinit(local_owned_dofs, dsp, mpi_communicator);          //Same 
-    drift_diffusion_matrix.reinit(local_owned_dofs, dsp, mpi_communicator);          //Same 
-	electron_drift_diffusion_matrix.reinit(local_owned_dofs, dsp, mpi_communicator); //Same
+	ion_system_matrix.reinit(local_owned_dofs, local_owned_dofs, dsp, mpi_communicator);               //Reinitialize sparse matrix ion_system_matrix with the given sparsity pattern. The latter tells the matrix how many nonzero elements there need to be reserved.
+	electron_system_matrix.reinit(local_owned_dofs, local_owned_dofs, dsp, mpi_communicator);          //Same 
+    drift_diffusion_matrix.reinit(local_owned_dofs, local_owned_dofs, dsp, mpi_communicator);          //Same 
+	electron_drift_diffusion_matrix.reinit(local_owned_dofs, local_owned_dofs, dsp, mpi_communicator); //Same
 }
 
 //------------------------------------------------------------------------------------------------------------------------------------------------------------
