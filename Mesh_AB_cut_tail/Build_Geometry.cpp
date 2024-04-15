@@ -423,9 +423,9 @@ void Build_Geometry::write_physical_groups(std::ofstream & ofs) const{
 
     ofs << "//PHYSICAL CURVES"<<std::endl;
 
-    ofs << "Physical Curve(1)={10}; //Inlet"<<std::endl;                //Physical curve with tag 1 is the inlet
-    ofs << "Physical Curve(2)={12}; //Outlet"<<std::endl;              //Physical curve with tag 2 is the outlet
-    ofs << "Physical Curve(3)={6, 7, 8, 9}; //Emitter"<<std::endl;     //Physical curve with tag 3 is the emitter
+    ofs << "Physical Curve(1)={10}; //Inlet"<<std::endl;                   //Physical curve with tag 1 is the inlet
+    ofs << "Physical Curve(2)={12}; //Outlet"<<std::endl;                  //Physical curve with tag 2 is the outlet
+    ofs << "Physical Curve(3)={6, 7, 8, 9}; //Emitter"<<std::endl;         //Physical curve with tag 3 is the emitter
     ofs << "Physical Curve(4)={-1, -5, -4, -3, -2}; //Airfoil"<<std::endl; //Physical curve with tag 4 is the airfoil
 
     return;

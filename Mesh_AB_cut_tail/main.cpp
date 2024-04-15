@@ -55,7 +55,7 @@ s_data.BL_fanPoints = json_data["BL_fanPoints"];
 s_data.mesh_algorithm=json_data["mesh_algorithm"];
        
 // finally we set the number of points that we want to cut in the tail of the airfoil
-unsigned int cutted_points = 16;
+unsigned int cutted_points = 10;
 
 //##################### WRITE THE COORDINATES IN A .GEO OUTPUT FILE ##################################################################################
 
