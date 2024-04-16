@@ -93,11 +93,11 @@ void InsIMEX<dim>::make_constraints()
                                             fe.component_mask(velocities));
     
 
-    // VectorTools::interpolate_boundary_values(dof_handler,
-    //                                         2,                    // Outlet
-    //                                         Functions::ZeroFunction<dim>(dim+1),//BoundaryValues<dim>()
-    //                                         nonzero_NS_constraints,
-    //                                         fe.component_mask(vertical_velocity_and_pressure));
+    VectorTools::interpolate_boundary_values(dof_handler,
+                                            2,                    // Outlet
+                                            Functions::ZeroFunction<dim>(dim+1),//BoundaryValues<dim>()
+                                            nonzero_NS_constraints,
+                                            fe.component_mask(vertical_velocity_and_pressure));  //Vertical velocity and pressure at outlet equal to 0
 
 
 
@@ -133,9 +133,6 @@ void InsIMEX<dim>::make_constraints()
     nonzero_NS_constraints.close();         //After closing, no more entries are accepted
     zero_NS_constraints.close();
 
-    Point<dim> p(2.95,0);
-    pcout <<"Value of BoundaryValue in the point (2.95,0) is "
-     << BoundaryValues<dim>().value(p , 0) << std::endl;
 }
 
 
@@ -394,12 +391,21 @@ void InsIMEX<dim>::run()
     make_constraints();
     initialize_system();
 
+    //Initialize the present_solution
+    MappingQ1<dim>  mapping; 
+    PETScWrappers::MPI::BlockVector tmp1;
+	tmp1.reinit(owned_partitioning, mpi_communicator);
+	tmp1 = present_solution;
+	VectorTools::interpolate(mapping, dof_handler, Functions::ZeroFunction<dim>(dim+1), tmp1);
+	present_solution = tmp1;
+
     // Time loop.
     while (time.end() - time.current() > 1e-12)            //We are not still at the end
     {
         if (time.get_timestep() == 0)
         {
             output_results(0);                             //Print result at 0 timestep
+            pcout << "L2 norm of the initial condition: " << present_solution.l2_norm() << std::endl;
         }
         time.increment();
         std::cout.precision(6);                           //This means that when floating-point numbers are output to std::cout, they will be displayed with up to 6 digits after the decimal point.
@@ -422,7 +428,7 @@ void InsIMEX<dim>::run()
         auto state = solve(apply_nonzero_constraints, assemble_system);
         // Note we have to use a non-ghosted vector to do the addition.
         PETScWrappers::MPI::BlockVector tmp;
-        tmp.reinit(owned_partitioning, mpi_communicator);
+        tmp.reinit(owned_partitioning, mpi_communicator);   //We do this since present solution is a ghost vector so is read-only
         tmp = present_solution;
         tmp += solution_increment;
         present_solution = tmp;

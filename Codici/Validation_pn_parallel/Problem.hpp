@@ -134,6 +134,9 @@ class Problem{
     void create_mesh();   
     
     // POISSON PROBLEM
+    void assemble_laplace_matrix();
+	  void assemble_mass_matrix();
+    
     void setup_poisson();
     void assemble_nonlinear_poisson();
     void solve_poisson();
