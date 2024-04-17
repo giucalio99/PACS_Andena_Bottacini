@@ -83,7 +83,7 @@ double BoundaryValues<dim>::value(const Point<dim> & /*p*/,
 		ExcIndexRange(component, 0, this->n_components));
 
  if (component == 0) {
-	return 1.;
+	return 0.1;
  }
 
  if (component == dim)
