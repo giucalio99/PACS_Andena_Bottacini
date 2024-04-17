@@ -45,8 +45,8 @@ CMAKE_MINIMUM_REQUIRED(VERSION 3.13.4)
 #  )
 
 
-FIND_PACKAGE(deal.II 9.3.1 
-    HINTS /u/sw/toolchains/gcc-glibc/11.2.0/pkgs/dealii/9.3.1
+FIND_PACKAGE(deal.II 9.5.1 
+    HINTS /opt/mox/mk/toolchains/gcc-glibc/11.2.0/pkgs/dealii/9.5.1
     )
 
 IF(NOT ${deal.II_FOUND})
