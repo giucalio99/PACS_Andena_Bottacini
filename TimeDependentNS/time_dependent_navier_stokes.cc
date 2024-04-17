@@ -221,7 +221,7 @@ Point<dim-1>  CollectorGeometry<dim>::pull_back(const Point<dim> &p) const      
 
  void create_triangulation(parallel::distributed::Triangulation<2> &tria, const MyDataStruct s_data)
 { 
-  const std::string filename = "../../Mesh_AB_trapezio/example.msh";
+  const std::string filename = "../../Structured_Meshes/Test1.msh";
   // const std::string filename = "../../../../Scaricati/mesh_test.msh";
   cout << "Reading from " << filename << std::endl;
   std::ifstream input_file(filename);
@@ -231,18 +231,24 @@ Point<dim-1>  CollectorGeometry<dim>::pull_back(const Point<dim> &p) const      
 
   const types::manifold_id emitter = 1;                   //The type used to denote manifold indicators associated with every object of the mesh
 
-  const double re = s_data.radius_emitter ; // [m] emitter radius                                 
+  /*const double re = s_data.radius_emitter ; // [m] emitter radius                                 
   const double g = s_data.distance_emitter_collector; // [m] interelectrode distance
-  const double X = -re-g; // [m] emitter center 
-  
+  const double X = -re-g; // [m] emitter center */
+  // for wire wire simulation
+  double r_col = 1e-3;
+  double r_emi = 30e-5;
+  double dist_emi_col = 0.025;
+  const double X = -r_emi-dist_emi_col;
+
+
   const Point<2> center(X,0.0);
   //const Point<2> center1(0.0,0.0);
   SphericalManifold<2> emitter_manifold(center);
 
   const types::manifold_id collector = 2;
-  CollectorGeometry<2> collector_manifold; 
-  // const Point<2> center2(0.01103,0.0);
-  // SphericalManifold<2> collector_manifold(center2);               
+  //CollectorGeometry<2> collector_manifold; 
+  const Point<2> center2(r_col,0.0);
+  SphericalManifold<2> collector_manifold(center2);               
 
   tria.set_all_manifold_ids_on_boundary(1, emitter);
   tria.set_manifold(emitter, emitter_manifold);
@@ -279,7 +285,7 @@ inFile.close();
 MyDataStruct s_data;  //structured data
 
 // Access the data from the JSON object and store them in MyDataStruct object
-s_data.BL_ratio = json_data["BL_emitter_ratio"];
+/*s_data.BL_ratio = json_data["BL_emitter_ratio"];
 s_data.BL_size = json_data["BL_emitter_size"];
 s_data.BL_thickness=json_data["BL_emitter_thickness"];
 
@@ -293,7 +299,12 @@ s_data.distance_emitter_inlet=json_data["distance_emitter_inlet"];
 s_data.distance_emitter_up_bottom=json_data["distance_emitter_up_bottom"];
 s_data.box_profile_semi_minor_axis=json_data["box_profile_semi_minor_axis"];
 s_data.box_profile_semi_major_axis=json_data["box_profile_semi_major_axis"];
+*/
 
+// for wire wire simulation
+double r_col = 1e-3;
+double r_emi = 30e-5;
+double dist_emi_col = 0.025;
 
 
 
