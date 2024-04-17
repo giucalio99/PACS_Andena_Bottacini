@@ -66,6 +66,18 @@
     	Assert(false, ExcNotImplemented());
   }*/
 
+  // This method create, or import, the mesh over which we perform the simulation. Moreover it sets the unique tag of the boundary
+template <int dim>
+void create_triangulation(parallel::distributed::Triangulation<dim> &triangulation)
+{
+	const std::string filename = "../../../Structured_Meshes/Structured_Square.msh"; //name of the .msh file
+	ifstream input_file(filename); //ATTENZIONE, PERCHè NON CE OPEN?
+	cout << "Reading from " << filename << endl; //screen comment
+	GridIn<2>       grid_in; //This class implements an input mechanism for grid data. It allows to read a grid structure into a triangulation object
+	grid_in.attach_triangulation(triangulation); //we pass to grid_in our (empty) triangulation
+	grid_in.read_msh(input_file); // read the msh file
+}
+
 
 int main(int argc, char *argv[])
 {
@@ -73,6 +85,7 @@ int main(int argc, char *argv[])
     {                                       // in step 40, aggiunge anche mesh_smooting a tria
       Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);            //Initialize MPI (and, if deal.II was configured to use it, PETSc) and set the maximum number of threads used by deal.II to the given parameter.
       parallel::distributed::Triangulation<2> tria(MPI_COMM_WORLD);
+      create_triangulation(tria);
       Problem<2> drift_diffusion(tria);
       drift_diffusion.run();
     }

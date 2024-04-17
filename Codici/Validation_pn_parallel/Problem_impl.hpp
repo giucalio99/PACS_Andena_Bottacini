@@ -19,55 +19,54 @@ Problem<dim>::Problem(parallel::distributed::Triangulation<dim> &tria)
 
 //---------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-// This method create, or import, the mesh over which we perform the simulation. Moreover it sets the unique tag of the boundary
-template <int dim>
-void Problem<dim>::create_mesh()
-{
-    const Point<dim> bottom_left(0.,-L/20.);  //bottom left Point of the rectangular mesh
-	const Point<dim> top_right(L,L/20.);      //top right Point of the rectangular domain
+// // This method create, or import, the mesh over which we perform the simulation. Moreover it sets the unique tag of the boundary
+// template <int dim>
+// void Problem<dim>::create_mesh()
+// {
+//     // const Point<dim> bottom_left(0.,-L/20.);  //bottom left Point of the rectangular mesh
+// 	// const Point<dim> top_right(L,L/20.);      //top right Point of the rectangular domain
     
-	// NB: these points are needed if you want to define a mesh starting from deal ii, otherwise use an input file as follows:
+// 	// NB: these points are needed if you want to define a mesh starting from deal ii, otherwise use an input file as follows:
 
-	// For a structured mesh (**commento di menessini**)
-	//GridGenerator::subdivided_hyper_rectangle(triangulation, {100,}, bottom_left, top_right);
+// 	// For a structured mesh (**commento di menessini**)
+// 	//GridGenerator::subdivided_hyper_rectangle(triangulation, {100,}, bottom_left, top_right);
 
-    // we read from input file the mesh already generated
-	const std::string filename = "../../../Meshes/small_square.msh"; //name of the .msh file
-	ifstream input_file(filename); //ATTENZIONE, PERCHè NON CE OPEN?
-	cout << "Reading from " << filename << endl; //screen comment
-	GridIn<2>       grid_in; //This class implements an input mechanism for grid data. It allows to read a grid structure into a triangulation object
-	grid_in.attach_triangulation(triangulation); //we pass to grid_in our (empty) triangulation
-	grid_in.read_msh(input_file); // read the msh file
+//     // we read from input file the mesh already generated
+// 	const std::string filename = "../../../Struct/small_square.msh"; //name of the .msh file
+// 	ifstream input_file(filename); //ATTENZIONE, PERCHè NON CE OPEN?
+// 	cout << "Reading from " << filename << endl; //screen comment
+// 	GridIn<2>       grid_in; //This class implements an input mechanism for grid data. It allows to read a grid structure into a triangulation object
+// 	grid_in.attach_triangulation(triangulation); //we pass to grid_in our (empty) triangulation
+// 	grid_in.read_msh(input_file); // read the msh file
 
 
 
-    //now we identify the boundaries of the mesh
-	for (auto &face : triangulation.active_face_iterators())    // we look only at active face, namely only at those faces that carry dofs, these cells are not father of other sub cells
-	{
-	  if (face->at_boundary())  // if we are looking at a face on the boundary (in our 2D case and edge on the boundary). at_boundary() return true-false values
-	  {
-		  face->set_boundary_id(0);             // we associate this edge with the unique ID zero (this will be the ID of the boundary faces on up/bottom boundaries)
-		  const Point<dim> c = face->center();  // we compute the geometrical center of the edge that is stored in the face iterator
+//     //now we identify the boundaries of the mesh
+// 	// for (auto &face : triangulation.active_face_iterators())    // we look only at active face, namely only at those faces that carry dofs, these cells are not father of other sub cells
+// 	// {
+// 	//   if (face->at_boundary())  // if we are looking at a face on the boundary (in our 2D case and edge on the boundary). at_boundary() return true-false values
+// 	//   {
+// 	// 	  face->set_boundary_id(0);             // we associate this edge with the unique ID zero (this will be the ID of the boundary faces on up/bottom boundaries)
+// 	// 	  const Point<dim> c = face->center();  // we compute the geometrical center of the edge that is stored in the face iterator
 
-		  	  if ( c[1] < top_right[1] && c[1] > bottom_left[1]) { // if the y coordinate of the Point c is less than TR point and grater than BL point (basically if we are on the left/right boundary)
+// 	// 	  	  if ( c[1] < top_right[1] && c[1] > bottom_left[1]) { // if the y coordinate of the Point c is less than TR point and grater than BL point (basically if we are on the left/right boundary)
 
-		  		  if (c[0] < (top_right[0] + bottom_left[0])/2.) { // if we are on the left boundary edge
-		  			  face->set_boundary_id(1); //ID of the boundary faces on the left 
-		  		  } else
-		  			face->set_boundary_id(2);  //ID of the boundary faces on the right
-		  	  }
-		  }
-	}
+// 	// 	  		  if (c[0] < (top_right[0] + bottom_left[0])/2.) { // if we are on the left boundary edge
+// 	// 	  			  face->set_boundary_id(1); //ID of the boundary faces on the left 
+// 	// 	  		  } else
+// 	// 	  			face->set_boundary_id(2);  //ID of the boundary faces on the right
+// 	// 	  	  }
+// 	// 	  }
+// 	// }
 
-	 triangulation.refine_global(3); //globally refine the mesh 3 times, namely each cells is subdivided into 3 more cells--> increase mesh resolution
-}
+// 	//  triangulation.refine_global(3); //globally refine the mesh 3 times, namely each cells is subdivided into 3 more cells--> increase mesh resolution
+// }
 
 //--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 template <int dim>
 void Problem<dim>::assemble_laplace_matrix()
 {
-  
 	const QGauss<dim> quadrature_formula(fe.degree + 1);
 
 	FEValues<dim> fe_values(fe,
@@ -109,7 +108,6 @@ void Problem<dim>::assemble_laplace_matrix()
 template <int dim>
 void Problem<dim>::assemble_mass_matrix()
 {
-  
 	const QGauss<dim> quadrature_formula(fe.degree + 1);
 
 	FEValues<dim> fe_values(fe,
@@ -208,6 +206,35 @@ void Problem<dim>::setup_poisson()
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
 
+//This methode set ups the drift diffusion problem; in particular we give the size of all the vectors involved in the computation and
+//we initialize the sparse matrices
+template <int dim>
+void Problem<dim>::setup_drift_diffusion()
+{   
+	//NB non richiama/riinizializza dof handler siccome mi aspetto di chiamare prima setup Poisson (vedi run()) 
+	ion_density.reinit(local_owned_dofs, locally_relevant_dofs, mpi_communicator);           //Resize the dimension of the vector ion_density to the number of the dof (unsigned int)
+	electron_density.reinit(local_owned_dofs, locally_relevant_dofs, mpi_communicator);      //Resize the dimension of the vector electron_density to the number of the dof (unsigned int)
+    old_ion_density.reinit(local_owned_dofs, locally_relevant_dofs, mpi_communicator);       //Resize the dimension of the vector old_ion_density to the number of the dof (unsigned int)
+	old_electron_density.reinit(local_owned_dofs, locally_relevant_dofs, mpi_communicator);  //Resize the dimension of the vector old_electron_density to the number of the dof (unsigned int)
+
+	constraints.clear();   //clear all the entries of constraints
+	DoFTools::make_hanging_node_constraints(dof_handler, constraints); // Compute the constraints resulting from the presence of hanging nodes. We put the result in constraints
+	constraints.close();   //close the object
+
+	DynamicSparsityPattern dsp(locally_relevant_dofs); // it mostly represents a SparsityPattern object that is kept compressed at all times, memory reason. We initialize a square pattern of size n_dof
+	DoFTools::make_sparsity_pattern(dof_handler, dsp, constraints, false); // Compute which entries of a matrix built on dof_handler may possibly be nonzero, and create a sparsity pattern object that represents these nonzero locations, we put it in dsp
+
+	ion_rhs.reinit(local_owned_dofs, mpi_communicator);             //Resize the dimension of ion_rhs
+	electron_rhs.reinit(local_owned_dofs, mpi_communicator);        //Resize the dimension of electron_rhs
+
+	ion_system_matrix.reinit(local_owned_dofs, local_owned_dofs, dsp, mpi_communicator);               //Reinitialize sparse matrix ion_system_matrix with the given sparsity pattern. The latter tells the matrix how many nonzero elements there need to be reserved.
+	electron_system_matrix.reinit(local_owned_dofs, local_owned_dofs, dsp, mpi_communicator);          //Same 
+    drift_diffusion_matrix.reinit(local_owned_dofs, local_owned_dofs, dsp, mpi_communicator);          //Same 
+	electron_drift_diffusion_matrix.reinit(local_owned_dofs, local_owned_dofs, dsp, mpi_communicator); //Same
+}
+
+
+//------------------------------------------------------------------------------------------------------------------------------------------------------------
 // This method is called in the newton_iteration_poisson method (NON CAPISCO MOLTO A CHE PUNTO DELL 'ALGO SIAMO)
 // It defines one iteration of the newton algorithm (?)
 template <int dim>
@@ -243,9 +270,9 @@ void Problem<dim>::assemble_nonlinear_poisson()
   doping_and_ions -= old_electron_density;
   doping_and_ions += old_ion_density;
 
-  mass_matrix_poisson.vmult(tmp,doping_and_ions);
+  mass_matrix_poisson.vmult(tmp,doping_and_ions);   //tmp = mass_matrix_poisson * doping_and_ions
   poisson_rhs.add(q0, tmp);//0, tmp);//
-  laplace_matrix_poisson.vmult(tmp,potential); //tmp = matrix * potential  //No problem, potential treated as const
+  laplace_matrix_poisson.vmult(tmp,potential);     //tmp = laplace_matrix_poisson * potential  //No problem, potential treated as const
   poisson_rhs.add(- eps_r * eps_0, tmp);//- eps_r * eps_0, tmp);//
   
   // CONDENSATE
@@ -302,8 +329,8 @@ void Problem<dim>::newton_iteration_poisson(const double tolerance, const unsign
 
 			for (unsigned int i = 0; i < poisson_newton_update.size(); i++) {
 
-				const PETScWrappers::MPI::Vector temp(poisson_newton_update);  //Ho bisogno di un oggetto const per accedere al metodo () const. !!! Non efficente
-				poisson_newton_update(i) = std::max(std::min(temp(i),V_E),-V_E);
+				const PETScWrappers::MPI::Vector temp(poisson_newton_update);    //Ho bisogno di un oggetto const per accedere al metodo () const. !!! Non efficente
+				poisson_newton_update(i) = std::max(std::min(temp(i),V_E),-V_E);    //DA RISCRIVERE CON IF ELSE CONDITION
 
 				tmp1(i) *= std::exp(alpha*poisson_newton_update(i)/V_E);
 				tmp1(i) *= std::exp(alpha*poisson_newton_update(i)/V_E);
@@ -336,37 +363,6 @@ void Problem<dim>::newton_iteration_poisson(const double tolerance, const unsign
 	  }
   }
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-
-//This methode set ups the drift diffusion problem; in particular we give the size of all the vectors involved in the computation and
-//we initialize the sparse matrices
-template <int dim>
-void Problem<dim>::setup_drift_diffusion()
-{   
-	//NB non richiama/riinizializza dof handler siccome mi aspetto di chiamare prima setup Poisson (vedi run()) 
-	ion_density.reinit(local_owned_dofs, locally_relevant_dofs, mpi_communicator);           //Resize the dimension of the vector ion_density to the number of the dof (unsigned int)
-	electron_density.reinit(local_owned_dofs, locally_relevant_dofs, mpi_communicator);      //Resize the dimension of the vector electron_density to the number of the dof (unsigned int)
-    old_ion_density.reinit(local_owned_dofs, locally_relevant_dofs, mpi_communicator);       //Resize the dimension of the vector old_ion_density to the number of the dof (unsigned int)
-	old_electron_density.reinit(local_owned_dofs, locally_relevant_dofs, mpi_communicator);  //Resize the dimension of the vector old_electron_density to the number of the dof (unsigned int)
-
-	constraints.clear();   //clear all the entries of constraints
-	DoFTools::make_hanging_node_constraints(dof_handler, constraints); // Compute the constraints resulting from the presence of hanging nodes. We put the result in constraints
-	constraints.close();   //close the object
-
-	DynamicSparsityPattern dsp(locally_relevant_dofs); // it mostly represents a SparsityPattern object that is kept compressed at all times, memory reason. We initialize a square pattern of size n_dof
-	DoFTools::make_sparsity_pattern(dof_handler, dsp, constraints, false); // Compute which entries of a matrix built on dof_handler may possibly be nonzero, and create a sparsity pattern object that represents these nonzero locations, we put it in dsp
-	sparsity_pattern.copy_from(dsp);  //copy sparsity pattern from dsp
-
-	ion_rhs.reinit(local_owned_dofs, mpi_communicator);             //Resize the dimension of ion_rhs
-	electron_rhs.reinit(local_owned_dofs, mpi_communicator);        //Resize the dimension of electron_rhs
-
-	ion_system_matrix.reinit(local_owned_dofs, local_owned_dofs, dsp, mpi_communicator);               //Reinitialize sparse matrix ion_system_matrix with the given sparsity pattern. The latter tells the matrix how many nonzero elements there need to be reserved.
-	electron_system_matrix.reinit(local_owned_dofs, local_owned_dofs, dsp, mpi_communicator);          //Same 
-    drift_diffusion_matrix.reinit(local_owned_dofs, local_owned_dofs, dsp, mpi_communicator);          //Same 
-	electron_drift_diffusion_matrix.reinit(local_owned_dofs, local_owned_dofs, dsp, mpi_communicator); //Same
-}
-
-//------------------------------------------------------------------------------------------------------------------------------------------------------------
-
 //This method assemble the drift diffusion matrix (da rivedere con tesi riletta)
 template <int dim>
 void Problem<dim>::assemble_drift_diffusion_matrix() //del singolo processore
@@ -570,7 +566,7 @@ void Problem<dim>::run()
         << Utilities::MPI::n_mpi_processes(mpi_communicator)         //Return the number of MPI processes there exist in the given communicator object
         << " MPI rank(s)..." << std::endl;
 	//CREATION OF THE MESH
-	create_mesh();
+	//create_mesh();
     
 	// SET UP THE MATRICES AND DOFHANDLER
 	setup_poisson();

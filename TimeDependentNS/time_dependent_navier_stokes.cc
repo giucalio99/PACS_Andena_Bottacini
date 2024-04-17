@@ -221,8 +221,8 @@ Point<dim-1>  CollectorGeometry<dim>::pull_back(const Point<dim> &p) const      
 
  void create_triangulation(parallel::distributed::Triangulation<2> &tria, const MyDataStruct s_data)
 { 
-  const std::string filename = "../../Structured_Meshes/Test1.msh";
-  // const std::string filename = "../../../../Scaricati/mesh_test.msh";
+  const std::string filename = "../../Structured_Meshes/WireWire.msh";
+  // const std::string filename = "../../Mesh_AB_trapezio/example.msh";
   cout << "Reading from " << filename << std::endl;
   std::ifstream input_file(filename);
   GridIn<2>       grid_in;
@@ -302,9 +302,9 @@ s_data.box_profile_semi_major_axis=json_data["box_profile_semi_major_axis"];
 */
 
 // for wire wire simulation
-double r_col = 1e-3;
-double r_emi = 30e-5;
-double dist_emi_col = 0.025;
+// double r_col = 1e-3;
+// double r_emi = 30e-5;
+// double dist_emi_col = 0.025;
 
 
 
@@ -313,6 +313,7 @@ try
     using namespace dealii;
 
     Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);            //Initialize MPI (and, if deal.II was configured to use it, PETSc) and set the maximum number of threads used by deal.II to the given parameter.
+    //Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv);                  //Tolto 1 così prende il default value
     parallel::distributed::Triangulation<2> tria(MPI_COMM_WORLD);
     create_triangulation(tria, s_data);
     InsIMEX<2> flow(tria);
@@ -336,7 +337,7 @@ catch (...)
     std::cerr << std::endl
               << std::endl
               << "----------------------------------------------------"
-              << std::endl;
+              << std::endl;    
     std::cerr << "Unknown exception!" << std::endl
               << "Aborting!" << std::endl
               << "----------------------------------------------------"

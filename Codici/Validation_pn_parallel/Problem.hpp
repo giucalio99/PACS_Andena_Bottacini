@@ -93,7 +93,7 @@ class Problem{
     PETScWrappers::MPI::SparseMatrix laplace_matrix_poisson;
     PETScWrappers::MPI::SparseMatrix mass_matrix_poisson;
     PETScWrappers::MPI::SparseMatrix system_matrix_poisson;
-    SparsityPattern     sparsity_pattern_poisson;  
+    //SparsityPattern     sparsity_pattern_poisson;  
 
     PETScWrappers::MPI::SparseMatrix ion_system_matrix;
     PETScWrappers::MPI::SparseMatrix mass_matrix;
@@ -101,7 +101,7 @@ class Problem{
 
     PETScWrappers::MPI::SparseMatrix electron_system_matrix;
     PETScWrappers::MPI::SparseMatrix electron_drift_diffusion_matrix;
-    SparsityPattern     sparsity_pattern;
+    // SparsityPattern     sparsity_pattern;
     
     // Vector: A class that represents a vector of numerical elements
     PETScWrappers::MPI::Vector poisson_newton_update;
@@ -131,7 +131,7 @@ class Problem{
     ConditionalOStream pcout;  //A class allows you to print an output stream, basically it prints only the output linked to the MPI_processor of rank zero "this_mpi_processor=0"
 
     // MESH
-    void create_mesh();   
+    //void create_mesh();   
     
     // POISSON PROBLEM
     void assemble_laplace_matrix();
