@@ -222,6 +222,10 @@ Point<dim-1>  CollectorGeometry<dim>::pull_back(const Point<dim> &p) const      
  void create_triangulation(parallel::distributed::Triangulation<2> &tria, const MyDataStruct s_data)
 { 
   const std::string filename = "../../Mesh_AB_trapezio/example.msh";
+<<<<<<< HEAD
+=======
+  // const std::string filename = "../../../../Scaricati/mesh_test.msh";
+>>>>>>> 5ddbeda6b0b420f6b16ea0a941a780e43045b29d
   cout << "Reading from " << filename << std::endl;
   std::ifstream input_file(filename);
   GridIn<2>       grid_in;
@@ -235,10 +239,13 @@ Point<dim-1>  CollectorGeometry<dim>::pull_back(const Point<dim> &p) const      
   const double X = -re-g; // [m] emitter center 
   
   const Point<2> center(X,0.0);
+  //const Point<2> center1(0.0,0.0);
   SphericalManifold<2> emitter_manifold(center);
 
   const types::manifold_id collector = 2;
-  CollectorGeometry<2> collector_manifold;                
+  CollectorGeometry<2> collector_manifold; 
+  // const Point<2> center2(0.01103,0.0);
+  // SphericalManifold<2> collector_manifold(center2);               
 
   tria.set_all_manifold_ids_on_boundary(1, emitter);
   tria.set_manifold(emitter, emitter_manifold);
