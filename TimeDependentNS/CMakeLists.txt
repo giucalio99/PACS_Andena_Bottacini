@@ -44,16 +44,10 @@ CMAKE_MINIMUM_REQUIRED(VERSION 3.13.4)
 #  HINTS ${deal.II_DIR} ${DEAL_II_DIR} ../ ../../ $ENV{DEAL_II_DIR}
 #  )
 
-
-<<<<<<< HEAD
-FIND_PACKAGE(deal.II 9.5.1 
-    HINTS /opt/mox/mk/toolchains/gcc-glibc/11.2.0/pkgs/dealii/9.5.1
-=======
 FIND_PACKAGE(deal.II 9.3.1
     HINTS /u/sw/toolchains/gcc-glibc/11.2.0/pkgs/dealii/9.3.1
     #HINTS /opt/mox/mk/toolchains/gcc-glibc/11.2.0/pkgs/dealii/9.5.1
     #HINTS ${deal.II_DIR} ${DEAL_II_DIR} ../ ../../ $ENV{DEAL_II_DIR}
->>>>>>> 5ddbeda6b0b420f6b16ea0a941a780e43045b29d
     )
 
 IF(NOT ${deal.II_FOUND})
