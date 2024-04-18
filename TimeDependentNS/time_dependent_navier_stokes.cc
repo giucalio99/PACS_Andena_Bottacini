@@ -221,7 +221,7 @@ Point<dim-1>  CollectorGeometry<dim>::pull_back(const Point<dim> &p) const      
 
  void create_triangulation(parallel::distributed::Triangulation<2> &tria, const MyDataStruct s_data)
 { 
-  const std::string filename = "../../Structured_Meshes/WireWire.msh";
+  const std::string filename = "../../Structured_Meshes/coarse_WW.msh";
   // const std::string filename = "../../Mesh_AB_trapezio/example.msh";
   cout << "Reading from " << filename << std::endl;
   std::ifstream input_file(filename);

@@ -467,7 +467,11 @@ void Problem<dim>::assemble_drift_diffusion_matrix() //del singolo processore
 				constraints.distribute_local_to_global(neg_A, cell_rhs,  A_local_dof_indices, electron_drift_diffusion_matrix, electron_rhs); //Same
 				constraints.distribute_local_to_global(neg_B, cell_rhs,  B_local_dof_indices, electron_drift_diffusion_matrix, electron_rhs); //same
 		    }
-
+	
+	drift_diffusion_matrix.compress(VectorOperation::add);       //Added compress like in other assemble functions
+	ion_rhs.compress(VectorOperation::add);
+	electron_drift_diffusion_matrix.compress(VectorOperation::add);
+	electron_rhs.compress(VectorOperation::add);
 
 }
 
@@ -482,7 +486,7 @@ void Problem<dim>::apply_drift_diffusion_boundary_conditions()
 		std::map<types::global_dof_index, double> emitter_boundary_values;
 
 		VectorTools::interpolate_boundary_values(mapping, dof_handler,1, Functions::ConstantFunction<dim>(N1), emitter_boundary_values); //This function creates a map of degrees of freedom subject to Dirichlet boundary conditions and the corresponding values to be assigned to them, by interpolation around the boundary (tag 1). 
-	    MatrixTools::apply_boundary_values(emitter_boundary_values, electron_system_matrix, electron_density, electron_rhs); //Apply Dirichlet boundary conditions to the system matrix and vectors
+	    MatrixTools::apply_boundary_values(emitter_boundary_values, electron_system_matrix, electron_density, electron_rhs); //Apply Dirichlet boundary conditions to the system matrix and vectors  //It works also on PETScWrappers::MPI::
 
 		VectorTools::interpolate_boundary_values(mapping, dof_handler,2, Functions::ConstantFunction<dim>(N2), collector_boundary_values);
 		MatrixTools::apply_boundary_values(collector_boundary_values, electron_system_matrix, electron_density, electron_rhs);
@@ -531,28 +535,40 @@ void Problem<dim>::output_results(const unsigned int step)
     data_out.add_data_vector(ion_density, "Ion_Density");
     data_out.add_data_vector(electron_density, "Electron_Density");
     data_out.add_data_vector(potential, "Potential");
-    data_out.build_patches();
+    //data_out.build_patches();
 
-    std::string filename;
+	Vector<float> subdomain(triangulation.n_active_cells());
+    for (unsigned int i = 0; i < subdomain.size(); ++i)
+    {
+        subdomain(i) = triangulation.locally_owned_subdomain();           //For distributed parallel triangulations this function returns the subdomain id of those cells that are owned by the current processor
+    }
+    data_out.add_data_vector(subdomain, "subdomain");
+
+	data_out.build_patches(fe.degree + 1);
+
+	std::string basename =
+    "ValidationPN" + Utilities::int_to_string(step, 6) + "-";
+
+	std::string filename;
     filename = "solution-" + Utilities::int_to_string(step, 3) + ".vtk";
-    DataOutBase::VtkFlags vtk_flags;
-    vtk_flags.compression_level = DataOutBase::VtkFlags::ZlibCompressionLevel::best_speed;
-    data_out.set_flags(vtk_flags);
+    // DataOutBase::VtkFlags vtk_flags;
+    // vtk_flags.compression_level = DataOutBase::VtkFlags::ZlibCompressionLevel::best_speed;
+    // data_out.set_flags(vtk_flags);
     std::ofstream output(filename);
     data_out.write_vtk(output);
 
-	// static std::vector<std::pair<double, std::string>> times_and_names;
-    // if (Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
-    // {
-    //     for (unsigned int i = 0; i < Utilities::MPI::n_mpi_processes(mpi_communicator); ++i)
-    //     {
-    //         times_and_names.push_back(
-    //         {time.current(),
-    //         basename + Utilities::int_to_string(i, 4) + ".vtu"});
-    //     }
-    //     std::ofstream pvd_output("navierstokes.pvd");
-    //     DataOutBase::write_pvd_record(pvd_output, times_and_names);
-    // }
+	static std::vector<std::pair<double, std::string>> steps_and_names;
+    if (Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
+    {
+        for (unsigned int i = 0; i < Utilities::MPI::n_mpi_processes(mpi_communicator); ++i)
+        {
+            steps_and_names.push_back(
+            {step,
+            basename + Utilities::int_to_string(i, 4) + ".vtu"});
+        }
+        std::ofstream pvd_output("ValidationPN.pvd");
+        DataOutBase::write_pvd_record(pvd_output, steps_and_names);
+    }
 }
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
