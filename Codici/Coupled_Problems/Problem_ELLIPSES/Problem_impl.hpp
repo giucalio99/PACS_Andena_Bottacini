@@ -1,552 +1,4 @@
-/* ---------------------------------------------------------------------
- *
- * Copyright (C) 2000 - 2021 by the deal.II authors
- *
- * This file is based on step-6 of the examples section of the deal.II library.
- *
- * The deal.II library is free software; you can use it, redistribute
- * it, and/or modify it under the terms of the GNU Lesser General
- * Public License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- * The full text of the license can be found in the file LICENSE.md at
- * the top level directory of deal.II.
- *
- * ---------------------------------------------------------------------
- *
- * Author: Matteo Menessini, Politecnico di Milano, 2023
- *
- */
-
-// Time-stepping from step-26
-
-#include <deal.II/base/quadrature_lib.h>
-#include <deal.II/base/timer.h> // for the timer
-
-#include <deal.II/dofs/dof_handler.h>
-#include <deal.II/dofs/dof_tools.h>
-#include <deal.II/dofs/dof_renumbering.h> // For neighbor renumbering
-
-#include <deal.II/fe/fe_values.h>
-#include <deal.II/fe/fe_q.h>
-#include <deal.II/fe/fe_system.h>
-#include <deal.II/fe/fe_interface_values.h> // For gradient evaluator
-
-#include <deal.II/grid/tria.h>
-#include <deal.II/grid/grid_generator.h>
-#include <deal.II/grid/manifold_lib.h> // To use manifolds
-#include <deal.II/grid/grid_in.h> // For GMSH
-#include <deal.II/grid/grid_refinement.h>
-
-#include <deal.II/lac/dynamic_sparsity_pattern.h>
-#include <deal.II/lac/block_vector.h>
-#include <deal.II/lac/full_matrix.h>
-#include <deal.II/lac/block_sparse_matrix.h>
-#include <deal.II/lac/precondition.h>
-//#include <deal.II/lac/solver_cg.h>
-//#include <deal.II/lac/sparse_matrix.h>
-#include <deal.II/lac/sparse_direct.h> // For UMFPACK
-#include <deal.II/lac/solver_gmres.h> // For GMRES
-//#include <deal.II/lac/solver_bicgstab.h> // For BiCGStab
-//#include <deal.II/lac/vector.h>
-#include <deal.II/lac/affine_constraints.h>
-#include <deal.II/lac/sparse_ilu.h> // ILU preconditioning
-
-#include <deal.II/numerics/data_out.h>
-#include <deal.II/numerics/vector_tools.h>
-#include <deal.II/numerics/error_estimator.h> // For Kelly error
-#include <deal.II/numerics/matrix_tools.h> // For Laplace Matrix
-#include <deal.II/numerics/fe_field_function.h> // For boundary values
-#include <deal.II/numerics/solution_transfer.h> // For the solution transfer
-#include <deal.II/numerics/derivative_approximation.h> // Erro estimation in mesh refinement
-
-#include <fstream>
-#include <cmath>
-
-using namespace dealii;
-using namespace std;
-
-// Physical Constants
-const double eps_0 = 8.854 * 1.e-12; //[F/m]= [C^2 s^2 / kg / m^3]
-const double eps_r = 1.0006;
-const double q0 = 1.602 * 1.e-19; // [C]
-const double kB = 1.381 * 1.e-23 ; //[J/K]
-
-const bool stratosphere = false; // if false, use atmospheric 0 km conditions
-
-const bool Dirichlet = false; // if true, use homogeneous dirichlet conditions at collector electrode
-const bool Neumann = false; // if true, use homogeneous neumann conditions at collector electrode
-// if both Dirichlet and Neumann are false, a Robin condition is used
-
-const double q_over_eps_0 = q0 / eps_0; // [m^3 kg C^-1 s^-2]
-const double mu = 1.83e-4; // [m^2/s/V]
-const double T = stratosphere ? 217. : 303.; // [K] fluid temperature
-const double V_E = kB * T / q0; // [V] ion temperature
-const double D = mu * V_E;
-const double rho = stratosphere ? 0.089 : 1.225; // kg m^-3
-const double Mm = 29.e-3; // kg m^-3,average air molar mass
-const double Avo = 6.022e+23; // Avogadro's number
-//const double n_air = rho / Mm * Avo; // m^-3
-
-// Input Parameters
-const double Om_0 = 0.; // source/sink ion term [m^-3 s^-1]
-const double E_ON = 3.31e+6; // onset field threshold [V/m]
-const double E_ref = 1.e+7; // [V/m] maximum field value
-const double N_ref = 1.e+14; // [m^-3] maximum density value
-const double N_0 = stratosphere ? 2.2e-3 : 0.5e-3; // [m^-3] ambient ion density
-const double p_out = stratosphere ? 5474 : 101300;
-const double p_over_rho = 0.;//p_out / rho;
-
-// Geometry Data (always make it consistent with gmsh file)
-
-// emitter
-const double Vmax = 2.e+4; // [V] emitter voltage
-const double R = 2.5e-4; // [m] wire radius
-const double X = -R; // [m] emitter center
-
-const double g = 0.02; // [m] interelectrode distance
-const double mesh_height = 0.02;; // [m]
-
-// collector
-const double collector_height = 0.002; // [m]
-const double collector_length = 0.01; // [m]
-const double XC = g + collector_length/2.; // [m]
-
-
-// Collector Manifold - START
-double get_collector_height(const double &p)
-  {
-  	if (p <= g || p >= g + collector_length)
-  		return 0.;
-
-  	const double a = collector_length/2.;
-  	const double b = collector_height;
-
-  	return b*std::sqrt(1.-(p-XC)/a*(p-XC)/a);
-  }
-
-    template <int dim>
-    class CollectorGeometry : public ChartManifold<dim, dim, dim-1>
-    {
-    public:
-  	virtual Point<dim-1> pull_back(const Point<dim> &space_point) const override;
-
-  	virtual Point<dim> push_forward(const Point<dim-1> &chart_point) const override;
-
-  	virtual std::unique_ptr<Manifold<dim, dim>> clone() const override;
-
-    };
-
-    template <int dim>
-    std::unique_ptr<Manifold<dim, dim>> CollectorGeometry<dim>::clone() const
-    {
-  	return std::make_unique<CollectorGeometry<dim>>();
-    }
-
-    template <int dim>
-    Point<dim> CollectorGeometry<dim>::push_forward(const Point<dim-1>  &x) const
-    {
-  	const double y = get_collector_height(x[0]);
-
-  	Point<dim> p;
-  	p[0] = x[0]; p[1] = y;
-
-  	if (dim == 3) {
-  		p[2] = x[1];
-  	}
-
-  	return p;
-    }
-
-    template <int dim>
-    Point<dim-1>  CollectorGeometry<dim>::pull_back(const Point<dim> &p) const
-    {
-  	Point<dim-1> x;
-  	x[0] = p[0];
-
-  	if (dim == 3) {
-  		x[1] = p[2];
-  	}
-
-  	return x;
-    }
-  // Collector Manifold - END
-
-template <int dim>
-class Problem
-{
-public:
-  Problem();
-
-  void run();
-  
-private:
-  void create_mesh();
-
-  void setup_poisson();
-  void assemble_nonlinear_poisson();
-  void solve_poisson();
-  void solve_homogeneous_poisson();
-  void solve_nonlinear_poisson(const double tol, const unsigned int max_iterations);
-
-  void setup_drift_diffusion(const bool reinitialize_densities);
-  void assemble_drift_diffusion_matrix();
-  void apply_drift_diffusion_boundary_conditions(Vector<double> &solution);
-  void solve_drift_diffusion();
-  void perform_drift_diffusion_fixed_point_iteration_step();
-
-  void setup_navier_stokes();
-  void assemble_navier_stokes(const bool nonzero_constraints);
-  void solve_nonlinear_navier_stokes_step(const bool nonzero_constraints);
-  void navier_stokes_newton_iteration( const double tolerance,const unsigned int max_n_line_searches);
-  void solve_navier_stokes();
-  void estimate_thrust(); // not used
-
-  void evaluate_emitter_current(); // optional
-  void evaluate_electric_field();
-  void refine_mesh();
-  void output_results(const unsigned int step);
-
-  Triangulation<dim> triangulation;
-
-  Vector<double> Field_X;
-  Vector<double> Field_Y;
-
-  FE_Q<dim>       fe;
-  DoFHandler<dim> dof_handler;
-  MappingQ<dim>  mapping;
-
-  AffineConstraints<double> ion_constraints;
-  AffineConstraints<double> constraints_poisson;
-  AffineConstraints<double> zero_constraints_poisson;
-
-  SparseMatrix<double> laplace_matrix_poisson;
-  SparseMatrix<double> mass_matrix_poisson;
-  SparseMatrix<double> system_matrix_poisson;
-  SparsityPattern      sparsity_pattern_poisson;
-
-  SparseMatrix<double> ion_system_matrix;
-  SparseMatrix<double> ion_mass_matrix;
-  SparseMatrix<double> drift_diffusion_matrix;
-  SparsityPattern      sparsity_pattern;
-
-  Vector<double> poisson_newton_update;
-  Vector<double> potential;
-  Vector<double> poisson_rhs;
-
-  Vector<double> old_ion_density;
-  Vector<double> ion_density;
-  Vector<double> ion_rhs;
-  Vector<double> eta;
-
-  Vector<double> Vel_X;
-  Vector<double> Vel_Y;
-  Vector<double> pressure;
-
-  Vector<double> current_values;
-
-  double                               viscosity;
-  double                               gamma;
-  const unsigned int                   degree;
-  std::vector<types::global_dof_index> dofs_per_block;
-
-  MappingQ1<dim> NS_mapping;
-
-  FESystem<dim>      NS_fe;
-  DoFHandler<dim>    NS_dof_handler;
-
-  AffineConstraints<double> zero_NS_constraints;
-  AffineConstraints<double> nonzero_NS_constraints;
-
-  BlockSparsityPattern      NS_sparsity_pattern;
-  BlockSparseMatrix<double> NS_system_matrix;
-  SparseMatrix<double>      pressure_mass_matrix;
-
-  BlockVector<double> NS_solution;
-  BlockVector<double> NS_newton_update;
-  BlockVector<double> NS_system_rhs;
-
-  unsigned int step_number = 0;
-  double timestep = 0;
-
-  Timer timer;
-};
-
-Tensor<1,2> get_emitter_normal(const Point<2> a) {
-
-	Tensor<1,2> normal;
-
-	normal[0] = a[0] - X;
-	normal[1] = a[1];
-
-	const double norm = std::sqrt(normal[0]*normal[0]+normal[1]*normal[1]);
-
-	return normal/norm;
-}
-
-Tensor<1,2> get_collector_normal(const Point<2> a) {
-
-	Tensor<1,2> normal;
-
-	normal[0] = a[0] - XC;
-	normal[1] = a[1];
-
-	const double norm = std::sqrt(normal[0]*normal[0]+normal[1]*normal[1]);
-
-	return normal/norm;
-}
-
-// Functions for local triangle matrix assmbly - START
-
-// Bernoulli function
-void bernoulli (double x, double &bp, double &bn)
-{
-  const double xlim = 1.0e-2;
-  double ax  = fabs(x);
-
-  bp  = 0.0;
-  bn  = 0.0;
-
-  //  X=0
-  if (x == 0.0)
-    {
-      bp = 1.0;
-      bn = 1.0;
-      return;
-    }
-
-  // ASYMPTOTICS
-  if (ax > 80.0)
-    {
-      if (x > 0.0)
-        {
-          bp = 0.0;
-          bn = x;
-        }
-      else
-        {
-          bp = -x;
-          bn = 0.0;
-        }
-      return;
-    }
-
-  // INTERMEDIATE VALUES
-  if (ax <= 80 &&  ax > xlim)
-    {
-      bp = x / (exp (x) - 1.0);
-      bn = x + bp;
-      return;
-    }
-
-  // SMALL VALUES
-  if (ax <= xlim &&  ax != 0.0)
-    {
-      double jj = 1.0;
-      double fp = 1.0;
-      double fn = 1.0;
-      double df = 1.0;
-      double segno = 1.0;
-      while (fabs (df) > 1.0e-16)
-        {
-          jj += 1.0;
-          segno = -segno;
-          df = df * x / jj;
-          fp = fp + df;
-          fn = fn + segno * df;
-        }
-      bp = 1 / fp;
-      bn = 1 / fn;
-      return;
-    }
-
-};
-
-double side_length (const Point<2> a, const Point<2> b)
-{
-	double length = 0.;
-
-	if (a[0] == b[0])
-		length = std::abs(a[1] - b[1]);
-	else if (a[1] == b[1])
-		length = std::abs(a[0] - b[0]);
-	else
-		length = std::sqrt(a[0]*a[0] + b[0]*b[0] - 2.*a[0]*b[0] + a[1]*a[1] + b[1]*b[1] - 2.*a[1]*b[1]);
-
-	return length;
-}
-
-double triangle_denom(const Point<2> a, const Point<2> b, const Point<2> c)
-{
-	const double x1 = a[0];
-	const double y1 = a[1];
-
-	const double x2 = b[0];
-	const double y2 = b[1];
-
-	const double x3 = c[0];
-	const double y3 = c[1];
-
-	const double denom = x1*(y2-y3) + x2*(y3-y1) + x3*(y1-y2);
-
-	return denom;
-}
-
-Tensor<1,2> face_normal(const Point<2> a, const Point<2> b) {
-
-	Tensor<1,2> tangent, normal;
-
-	tangent[0] = b[0] - a[0];
-	tangent[1] = b[1] - a[1];
-
-	normal[0] = -tangent[1];
-	normal[1] = tangent[0];
-
-	return normal;
-}
-
-
-FullMatrix<double> compute_triangle_matrix(const Point<2> a, const Point<2> b, const Point<2> c, const double alpha12, const double alpha23, const double alpha31)
-{
-	const unsigned int size = 3;
-	FullMatrix<double> tria_matrix(size,size);
-
-	const double denom = triangle_denom(a,b,c);
-	const double area = 0.5*std::abs(denom);
-
-	const Tensor<1,2> grad_psi_1 = face_normal(b,c)/denom;
-	const Tensor<1,2> grad_psi_2 = face_normal(c,a)/denom;
-	const Tensor<1,2> grad_psi_3 = face_normal(a,b)/denom;
-
-	const double l_12 = grad_psi_1 * grad_psi_2;
-	const double l_23 = grad_psi_2 * grad_psi_3;
-	const double l_31 = grad_psi_1 * grad_psi_3;
-
-	double bp12, bn12, bp23, bn23, bp31, bn31;
-
-	bernoulli(alpha12,bp12,bn12);
-	bernoulli(alpha23,bp23,bn23);
-	bernoulli(alpha31,bp31,bn31);
-
-	const double D = mu * V_E;
-
-	tria_matrix(0,1) = D * area * bp12 * l_12;
-	tria_matrix(0,2) = D * area * bn31 * l_31;
-
-	tria_matrix(1,0) = D * area * bn12 * l_12;
-	tria_matrix(1,2) = D * area * bp23 * l_23;
-
-	tria_matrix(2,0) = D * area * bp31 * l_31;
-	tria_matrix(2,1) = D * area * bn23 * l_23;
-
-	tria_matrix(0,0) = - (tria_matrix(1,0)+tria_matrix(2,0));
-	tria_matrix(1,1) = - (tria_matrix(0,1)+tria_matrix(2,1));
-	tria_matrix(2,2) = - (tria_matrix(0,2)+tria_matrix(1,2));
-
-	return tria_matrix;
-}
-// Functions for local triangle matrix assmbly - END
-
-// NS preconditioner - START
-template <class PreconditionerMp>
-  class BlockSchurPreconditioner : public Subscriptor
-  {
-  public:
-    BlockSchurPreconditioner(double                           gamma,
-                             double                           viscosity,
-                             const BlockSparseMatrix<double> &S,
-                             const SparseMatrix<double> &     P,
-                             const PreconditionerMp &         Mppreconditioner);
-
-    void vmult(BlockVector<double> &dst, const BlockVector<double> &src) const;
-
-  private:
-    const double                     gamma;
-    const double                     viscosity;
-    const BlockSparseMatrix<double> &stokes_matrix;
-    const SparseMatrix<double> &     pressure_mass_matrix;
-    const PreconditionerMp &         mp_preconditioner;
-    SparseDirectUMFPACK              A_inverse;
-  };
-
-  template <class PreconditionerMp>
-  BlockSchurPreconditioner<PreconditionerMp>::BlockSchurPreconditioner(
-    double                           gamma,
-    double                           viscosity,
-    const BlockSparseMatrix<double> &S,
-    const SparseMatrix<double> &     P,
-    const PreconditionerMp &         Mppreconditioner)
-    : gamma(gamma)
-    , viscosity(viscosity)
-    , stokes_matrix(S)
-    , pressure_mass_matrix(P)
-    , mp_preconditioner(Mppreconditioner)
-  {
-    A_inverse.initialize(stokes_matrix.block(0, 0));
-  }
-
-  template <class PreconditionerMp>
-  void BlockSchurPreconditioner<PreconditionerMp>::vmult(
-    BlockVector<double> &      dst,
-    const BlockVector<double> &src) const
-  {
-    Vector<double> utmp(src.block(0));
-
-    {
-        const double tol = 1e-6 * src.block(1).l2_norm(); // Increased from 1.e-6
-        //cout << "Tol for CG is " << tol << endl;
-        const unsigned int Nmax = 1e+4;
-
-      SolverControl solver_control(Nmax, tol); // Increased from 1.e-6
-      SolverCG<Vector<double>> cg(solver_control);
-
-      dst.block(1) = 0.0;
-      cg.solve(pressure_mass_matrix,
-               dst.block(1),
-               src.block(1),
-               mp_preconditioner);
-      dst.block(1) *= -(viscosity + gamma);
-
-      if (solver_control.last_step() >= Nmax -1)
-    	  cerr << "Warning! CG has reached the maximum number of iterations " << solver_control.last_step() << " intead of reching the tolerance " << tol << endl;
-    }
-
-    {
-      stokes_matrix.block(0, 1).vmult(utmp, dst.block(1));
-      utmp *= -1.0;
-      utmp += src.block(0);
-    }
-
-    A_inverse.vmult(dst.block(0), utmp);
-  }
-  // NS preconditioner - END
-
-template <int dim>
-class BoundaryValues : public Function<dim>
-{
-public:
- BoundaryValues()
-   : Function<dim>(dim + 1)
- {}
- virtual double value(const Point<dim> & p,
-					  const unsigned int component) const override;
-};
-
-template <int dim>
-double BoundaryValues<dim>::value(const Point<dim> & /*p*/,
-								 const unsigned int component) const
-{
- Assert(component < this->n_components,
-		ExcIndexRange(component, 0, this->n_components));
-
- if (component == 0) {
-	return 1.;
- }
-
- if (component == dim)
-		return p_over_rho;
-
- return 0.;
-}
+// CONSTRUCTORS
 
 template <int dim>
 Problem<dim>::Problem()
@@ -563,7 +15,9 @@ Problem<dim>::Problem()
   , NS_mapping()
 {}
 
+//-----------------------------------------------------------------------------------------------------------------------------------------------------
 
+// this method creates the meshes of the problem
 template <int dim>
 void Problem<dim>::create_mesh()
 {
@@ -579,7 +33,7 @@ void Problem<dim>::create_mesh()
   	SphericalManifold<2> emitter_manifold(center);
 
 	const types::manifold_id collector = 2;
-	CollectorGeometry<2> collector_manifold;
+	CollectorGeometry<2> collector_manifold;  // collector geometry class
 
 	triangulation.set_all_manifold_ids_on_boundary(1, emitter);
 	triangulation.set_manifold(emitter, emitter_manifold);
@@ -589,7 +43,9 @@ void Problem<dim>::create_mesh()
 	cout  << "Active cells: " << triangulation.n_active_cells() << endl;
 }
 
+//--------------------------------------------------------------------------------------------------------------------------------------------------------
 
+// this method set up the Poisson problem 
 template <int dim>
 void Problem<dim>::setup_poisson()
 {
@@ -629,7 +85,9 @@ void Problem<dim>::setup_poisson()
 	poisson_rhs.reinit(dof_handler.n_dofs());
 }
 
+//------------------------------------------------------------------------------------------------------------------------------------------------------
 
+//
 template <int dim>
 void Problem<dim>::assemble_nonlinear_poisson()
 {
@@ -657,7 +115,7 @@ void Problem<dim>::assemble_nonlinear_poisson()
   zero_constraints_poisson.condense(system_matrix_poisson, poisson_rhs);
 }
 
-
+//----------------------------------------------------------------------------------------------------------------------------------------------------------
 template <int dim>
 void Problem<dim>::solve_poisson()
 {
@@ -667,6 +125,8 @@ void Problem<dim>::solve_poisson()
 
   zero_constraints_poisson.distribute(poisson_newton_update);
 }
+
+//--------------------------------------------------------------------------------------------------------------------------------------------------
 
 template <int dim>
 void Problem<dim>::solve_nonlinear_poisson(const double tolerance, const unsigned int max_n_line_searches)
@@ -700,6 +160,7 @@ void Problem<dim>::solve_nonlinear_poisson(const double tolerance, const unsigne
 		cout << "WARNING! NLP reached " << max_n_line_searches << " iterations achieving a residual " << current_res << endl;
   }
 
+//---------------------------------------------------------------------------------------------------------------------------------------------------
 template <int dim>
 void Problem<dim>::solve_homogeneous_poisson()
   {
@@ -710,7 +171,7 @@ void Problem<dim>::solve_homogeneous_poisson()
 	potential = poisson_newton_update;
 	constraints_poisson.distribute(potential);
   }
-
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------
 template <int dim>
 void Problem<dim>::setup_drift_diffusion(const bool reinitialize_densities)
 {
@@ -752,7 +213,7 @@ void Problem<dim>::setup_drift_diffusion(const bool reinitialize_densities)
 	drift_diffusion_matrix.reinit(sparsity_pattern);
 }
 
-
+//--------------------------------------------------------------------------------------------------------------------------------------------------------------------
 template <int dim>
 void Problem<dim>::assemble_drift_diffusion_matrix()
 {
@@ -941,7 +402,7 @@ void Problem<dim>::assemble_drift_diffusion_matrix()
 				ion_constraints.distribute_local_to_global(Robin,  cell_rhs, local_dof_indices, ion_system_matrix, ion_rhs);
 		    }
 }
-
+//-----------------------------------------------------------------------------------------------------------------------------------------------------
 template <int dim>
 void Problem<dim>::solve_drift_diffusion()
 {
@@ -952,7 +413,7 @@ void Problem<dim>::solve_drift_diffusion()
   ion_constraints.distribute(ion_density);
 }
 
-
+//------------------------------------------------------------------------------------------------------------------------------------------
 template <int dim>
  void Problem<dim>::perform_drift_diffusion_fixed_point_iteration_step()
 {
@@ -979,8 +440,7 @@ template <int dim>
 
     solve_drift_diffusion();
 }
-
-
+//---------------------------------------------------------------------------------------------------------------------------------------------------------
 template <int dim>
 void Problem<dim>::output_results(const unsigned int step)
 {
@@ -1051,6 +511,7 @@ void Problem<dim>::output_results(const unsigned int step)
     data_out_NS.write_vtk(NSoutput);*/
 }
 
+//----------------------------------------------------------------------------------------------------------------------------------------------------------
 template <int dim>
 void Problem<dim>::evaluate_electric_field()
 {
@@ -1109,7 +570,7 @@ void Problem<dim>::evaluate_electric_field()
    Field_X = el_field_X;
    Field_Y = el_field_Y;
 }
-
+//------------------------------------------------------------------------------------------------------------------------------------------------
 template <int dim>
   void Problem<dim>::setup_navier_stokes()
   {
@@ -1207,7 +668,7 @@ template <int dim>
     NS_newton_update.reinit(dofs_per_block);
     NS_system_rhs.reinit(dofs_per_block);
   }
-
+//---------------------------------------------------------------------------------------------------------------------------------------------------------
 template <int dim>
   void Problem<dim>::assemble_navier_stokes(const bool initial_step)
   {
@@ -1334,6 +795,7 @@ template <int dim>
 
   }
 
+//--------------------------------------------------------------------------------------------------------------------------------------------------------------
 template <int dim>
 void Problem<dim>::solve_nonlinear_navier_stokes_step(const bool initial_step)
 {
@@ -1363,7 +825,7 @@ void Problem<dim>::solve_nonlinear_navier_stokes_step(const bool initial_step)
 
   constraints_used.distribute(NS_newton_update);
 }
-
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------
 template <int dim>
 void Problem<dim>::navier_stokes_newton_iteration( const double tolerance,const unsigned int max_n_line_searches)
 {
@@ -1386,7 +848,7 @@ void Problem<dim>::navier_stokes_newton_iteration( const double tolerance,const 
       if (line_search_n >= max_n_line_searches)
       	cout << "WARNING! NS achieved a residual " << current_res << " after " << line_search_n << " iterations" << endl;
 }
-
+//----------------------------------------------------------------------------------------------------------------------------------------------------
 template <int dim>
 void Problem<dim>::solve_navier_stokes()
 {
@@ -1450,6 +912,7 @@ void Problem<dim>::solve_navier_stokes()
 
 	//cout << "Estimating thrust..." << endl; estimate_thrust();
 }
+//----------------------------------------------------------------------------------------------------------------------------------------------------
 
 /*template <int dim>
  void Problem<dim>::estimate_thrust()
@@ -1552,6 +1015,8 @@ void Problem<dim>::solve_navier_stokes()
    cout << " 	from: " << in_out_contribution/integral*100. << " % edges, " << wire_contribution/integral*100.  << " % emitter, " << naca_contribution/integral*100.  << " % collector" << endl;
  }*/
 
+//----------------------------------------------------------------------------------------------------------------------------------------------
+
 /*template <int dim>
  void Problem<dim>::evaluate_emitter_current()
 {
@@ -1645,7 +1110,7 @@ void Problem<dim>::solve_navier_stokes()
     cout << "Emitter current is " << current*1.e+3 << " [mA/m] "  <<  " at step " << step_number << endl;
     cout << "Collector current is " << collector_current*1.e+3 << " [mA/m] "  << endl;
 }*/
-
+//---------------------------------------------------------------------------------------------------------------------------------------------------
 template <int dim>
 void Problem<dim>::refine_mesh()
 {
@@ -1711,7 +1176,7 @@ void Problem<dim>::refine_mesh()
   nonzero_NS_constraints.distribute(NS_solution);
 }
 
-
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------
 template <int dim>
 void Problem<dim>::run()
 {
@@ -1787,41 +1252,157 @@ void Problem<dim>::run()
 
 }
 
+//#################################### HELPER FUNCTIONS #######################################################################################
 
+// Functions for local triangle matrix assmbly
 
-int main()
+// queste function sono uguali in junction pn, unica differenza è in compute_triangle_matrix perchè qui non passiamo la costante D
+// ma la computiamo all'interno
+
+// Bernoulli function
+void bernoulli (double x, double &bp, double &bn)
 {
-  try
-    {
-      Problem<2> drift_diffusion;
-      drift_diffusion.run();
-    }
-  catch (std::exception &exc)
-    {
-      std::cerr << std::endl
-                << std::endl
-                << "----------------------------------------------------"
-                << std::endl;
-      std::cerr << "Exception on processing: " << std::endl
-                << exc.what() << std::endl
-                << "Aborting!" << std::endl
-                << "----------------------------------------------------"
-                << std::endl;
+  const double xlim = 1.0e-2;
+  double ax  = fabs(x);
 
-      return 1; // Report an error
-    }
-  catch (...)
+  bp  = 0.0;
+  bn  = 0.0;
+
+  //  X=0
+  if (x == 0.0)
     {
-      std::cerr << std::endl
-                << std::endl
-                << "----------------------------------------------------"
-                << std::endl;
-      std::cerr << "Unknown exception!" << std::endl
-                << "Aborting!" << std::endl
-                << "----------------------------------------------------"
-                << std::endl;
-      return 1;
+      bp = 1.0;
+      bn = 1.0;
+      return;
     }
 
-  return 0;
+  // ASYMPTOTICS
+  if (ax > 80.0)
+    {
+      if (x > 0.0)
+        {
+          bp = 0.0;
+          bn = x;
+        }
+      else
+        {
+          bp = -x;
+          bn = 0.0;
+        }
+      return;
+    }
+
+  // INTERMEDIATE VALUES
+  if (ax <= 80 &&  ax > xlim)
+    {
+      bp = x / (exp (x) - 1.0);
+      bn = x + bp;
+      return;
+    }
+
+  // SMALL VALUES
+  if (ax <= xlim &&  ax != 0.0)
+    {
+      double jj = 1.0;
+      double fp = 1.0;
+      double fn = 1.0;
+      double df = 1.0;
+      double segno = 1.0;
+      while (fabs (df) > 1.0e-16)
+        {
+          jj += 1.0;
+          segno = -segno;
+          df = df * x / jj;
+          fp = fp + df;
+          fn = fn + segno * df;
+        }
+      bp = 1 / fp;
+      bn = 1 / fn;
+      return;
+    }
+
+};
+//---------------------------------------------------------------------------------------------------------------------------------------------------
+double side_length (const Point<2> a, const Point<2> b)
+{
+	double length = 0.;
+
+	if (a[0] == b[0])
+		length = std::abs(a[1] - b[1]);
+	else if (a[1] == b[1])
+		length = std::abs(a[0] - b[0]);
+	else
+		length = std::sqrt(a[0]*a[0] + b[0]*b[0] - 2.*a[0]*b[0] + a[1]*a[1] + b[1]*b[1] - 2.*a[1]*b[1]);
+
+	return length;
+}
+//------------------------------------------------------------------------------------------------------------------------------------------------
+double triangle_denom(const Point<2> a, const Point<2> b, const Point<2> c)
+{
+	const double x1 = a[0];
+	const double y1 = a[1];
+
+	const double x2 = b[0];
+	const double y2 = b[1];
+
+	const double x3 = c[0];
+	const double y3 = c[1];
+
+	const double denom = x1*(y2-y3) + x2*(y3-y1) + x3*(y1-y2);
+
+	return denom;
+}
+//-----------------------------------------------------------------------------------------------------------------------------------------
+Tensor<1,2> face_normal(const Point<2> a, const Point<2> b) {
+
+	Tensor<1,2> tangent, normal;
+
+	tangent[0] = b[0] - a[0];
+	tangent[1] = b[1] - a[1];
+
+	normal[0] = -tangent[1];
+	normal[1] = tangent[0];
+
+	return normal;
+}
+
+//------------------------------------------------------------------------------------------------------------------------------------------------------
+FullMatrix<double> compute_triangle_matrix(const Point<2> a, const Point<2> b, const Point<2> c, const double alpha12, const double alpha23, const double alpha31)
+{
+	const unsigned int size = 3;
+	FullMatrix<double> tria_matrix(size,size);
+
+	const double denom = triangle_denom(a,b,c);
+	const double area = 0.5*std::abs(denom);
+
+	const Tensor<1,2> grad_psi_1 = face_normal(b,c)/denom;
+	const Tensor<1,2> grad_psi_2 = face_normal(c,a)/denom;
+	const Tensor<1,2> grad_psi_3 = face_normal(a,b)/denom;
+
+	const double l_12 = grad_psi_1 * grad_psi_2;
+	const double l_23 = grad_psi_2 * grad_psi_3;
+	const double l_31 = grad_psi_1 * grad_psi_3;
+
+	double bp12, bn12, bp23, bn23, bp31, bn31;
+
+	bernoulli(alpha12,bp12,bn12);
+	bernoulli(alpha23,bp23,bn23);
+	bernoulli(alpha31,bp31,bn31);
+
+	const double D = mu * V_E;
+
+	tria_matrix(0,1) = D * area * bp12 * l_12;
+	tria_matrix(0,2) = D * area * bn31 * l_31;
+
+	tria_matrix(1,0) = D * area * bn12 * l_12;
+	tria_matrix(1,2) = D * area * bp23 * l_23;
+
+	tria_matrix(2,0) = D * area * bp31 * l_31;
+	tria_matrix(2,1) = D * area * bn23 * l_23;
+
+	tria_matrix(0,0) = - (tria_matrix(1,0)+tria_matrix(2,0));
+	tria_matrix(1,1) = - (tria_matrix(0,1)+tria_matrix(2,1));
+	tria_matrix(2,2) = - (tria_matrix(0,2)+tria_matrix(1,2));
+
+	return tria_matrix;
 }
