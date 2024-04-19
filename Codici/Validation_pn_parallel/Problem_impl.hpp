@@ -249,22 +249,14 @@ void Problem<dim>::assemble_nonlinear_poisson()
   PETScWrappers::MPI::SparseMatrix ion_mass_matrix; // We initialized the new ion_mass_matrix with our sparsity pattern
   ion_mass_matrix.reinit(local_owned_dofs, local_owned_dofs, dsp_poisson, mpi_communicator);
   ion_mass_matrix = 0; // and then set all the elments to zero
-  
-  cout << "Appena prima di compute ion_mass_matrix" << std::endl;
 
   // compute the ion mass matrix
   for (unsigned int i = 0; i < old_ion_density.size(); ++i){
-	  //cout << "(i,i) values " <<mass_matrix_poisson(i,i) * (old_ion_density(i) + old_electron_density(i))<<std::endl;
 	  ion_mass_matrix.set(i,i, mass_matrix_poisson(i,i) * (old_ion_density(i) + old_electron_density(i)));
   }
   ion_mass_matrix.compress(VectorOperation::insert); 
-  cout << "matrix (i,i) values " << ion_mass_matrix(1,1) <<std::endl;
-  //cout << "matrix (i,i) values " << mass_matrix_poisson(1,1) <<std::endl;
 
-  cout << "Setting ion_mass_matrix superato" << std::endl;
-  cout << "q0 / V_E: " <<q0/V_E <<std::endl;
   system_matrix_poisson.add(q0 / V_E, ion_mass_matrix);  // A += factor * B with the passed values
-  cout << "add a system_matrix_poisson superato" << std::endl;
   cout << "Ion matrix norm is " << system_matrix_poisson.linfty_norm() << std::endl;  // compute and print the infinit norm of the matrix
 
   system_matrix_poisson.add(eps_r * eps_0, laplace_matrix_poisson); // same as above
@@ -322,11 +314,8 @@ void Problem<dim>::newton_iteration_poisson(const double tolerance, const unsign
 
 	while (current_res > tolerance && line_search_n <= max_n_line_searches)
 	  {
-			cout << "ingresso nel while di newton_iteration_poisson superato" << std::endl;
 			assemble_nonlinear_poisson();  // assemble the system related to the current newton iteration
-			cout << "assemble_nonlinear_poisson() superato" << std::endl;
 			solve_poisson();               // solve the current newton iteration
-			cout << "solve_poisson() superato" << std::endl;
 
 			// Update Clamping
 			const double alpha = 1.;
@@ -338,28 +327,33 @@ void Problem<dim>::newton_iteration_poisson(const double tolerance, const unsign
             tmp1 = old_electron_density;
 			tmp2.reinit(local_owned_dofs, mpi_communicator);   
             tmp2 = old_ion_density;
-			tmp1.compress(VectorOperation::add); 
-			tmp2.compress(VectorOperation::add); 
 
 			for (unsigned int i = 0; i < poisson_newton_update.size(); i++) {
 
-				const PETScWrappers::MPI::Vector temp(poisson_newton_update);    //Ho bisogno di un oggetto const per accedere al metodo () const. !!! Non efficente
-				poisson_newton_update(i) = std::max(std::min(temp(i),V_E),-V_E);    //DA RISCRIVERE CON IF ELSE CONDITION
-				cout << "setting di poisson_newton_update superato" << std::endl;
-				tmp1(i) *= std::exp(alpha*std::max(std::min(temp(i),V_E),-V_E)/V_E);
-				tmp2(i) *= std::exp(alpha*std::max(std::min(temp(i),V_E),-V_E)/V_E);
+				//const PETScWrappers::MPI::Vector temp(poisson_newton_update);    //Ho bisogno di un oggetto const per accedere al metodo () const. !!! Non efficente
+				double result;
+				if (poisson_newton_update(i) < -V_E) {
+					result = -V_E;
+				} else if (poisson_newton_update(i) > V_E) {
+					result = V_E;
+				} else {
+					result = poisson_newton_update(i);
+				}
+				poisson_newton_update(i) = result;
+				//poisson_newton_update(i) = std::max(std::min(temp(i),V_E),-V_E);    //DA RISCRIVERE CON IF ELSE CONDITION
+				
+				//cout << "setting di poisson_newton_update superato" << std::endl;
+				tmp1(i) *= std::exp(alpha*result/V_E);
+				tmp2(i) *= std::exp(alpha*result/V_E);
                 
 				// old_electron_density(i) *= std::exp(alpha*poisson_newton_update(i)/V_E);
 				// old_ion_density(i) *= std::exp(-alpha*poisson_newton_update(i)/V_E);
 			}
-			cout << "for del setting di poisson_newton_update, tmp1 e tmp2 superato" << std::endl;
-			poisson_newton_update.compress(VectorOperation::add); 
-			// tmp1.compress(VectorOperation::add); 
-			// tmp2.compress(VectorOperation::add); 
-			cout << "setting di tmp1 e tmp2 superato" << std::endl;
+			poisson_newton_update.compress(VectorOperation::insert); 
+			tmp1.compress(VectorOperation::insert); 
+			tmp2.compress(VectorOperation::insert); 
 			old_electron_density = tmp1;
 			old_ion_density = tmp2;
-			cout << "setting di old_electron_density e old_ion_density superato" << std::endl;
 
 			constraints.distribute(old_ion_density);      //apply constrains on old_ion_density
 			constraints.distribute(old_electron_density); //apply constrains on old_electron_density
@@ -368,10 +362,11 @@ void Problem<dim>::newton_iteration_poisson(const double tolerance, const unsign
 			tmp3.reinit(local_owned_dofs, mpi_communicator);
 			tmp3 = potential;
 			tmp3.add(alpha, poisson_newton_update);
-			potential = tmp3;
+			
 			// potential.add(alpha, poisson_newton_update);  //potential = potential + alpha * poisson_newton_update
 
-			constraints_poisson.distribute(potential);    //apply cointraints_poisson to potential vector 
+			constraints_poisson.distribute(tmp3);    //apply cointraints_poisson to potential vector (vector can't be ghosted)
+			potential = tmp3;
 
 			current_res = poisson_newton_update.linfty_norm(); //update the residual as the L inf norm of the newton iteration
 
@@ -501,22 +496,44 @@ void Problem<dim>::assemble_drift_diffusion_matrix() //del singolo processore
 template <int dim>
 void Problem<dim>::apply_drift_diffusion_boundary_conditions()
 {       
-	    //create maps to store the boundary values on the collector and the emitter
-	    std::map<types::global_dof_index, double> collector_boundary_values;
-		std::map<types::global_dof_index, double> emitter_boundary_values;
+	//create maps to store the boundary values on the collector and the emitter
+	std::map<types::global_dof_index, double> collector_boundary_values;
+	std::map<types::global_dof_index, double> emitter_boundary_values;
 
-		VectorTools::interpolate_boundary_values(mapping, dof_handler,1, Functions::ConstantFunction<dim>(N1), emitter_boundary_values); //This function creates a map of degrees of freedom subject to Dirichlet boundary conditions and the corresponding values to be assigned to them, by interpolation around the boundary (tag 1). 
-	    MatrixTools::apply_boundary_values(emitter_boundary_values, electron_system_matrix, electron_density, electron_rhs); //Apply Dirichlet boundary conditions to the system matrix and vectors  //It works also on PETScWrappers::MPI::
+	// VectorTools::interpolate_boundary_values(mapping, dof_handler,1, Functions::ConstantFunction<dim>(N1), emitter_boundary_values); //This function creates a map of degrees of freedom subject to Dirichlet boundary conditions and the corresponding values to be assigned to them, by interpolation around the boundary (tag 1). 
+	// cout << "interpolate_boundary_values() superato" << std::endl;
+	// for (const auto& pair : emitter_boundary_values) {
+	// std::cout << "Chiave: " << pair.first << ", Valore: " << pair.second << std::endl;
+	// }
+	// MatrixTools::apply_boundary_values(emitter_boundary_values, electron_system_matrix, electron_density, electron_rhs); //Apply Dirichlet boundary conditions to the system matrix and vectors  //It works also on PETScWrappers::MPI::
+	// cout << "apply_boundary_values() superato" << std::endl;
 
-		VectorTools::interpolate_boundary_values(mapping, dof_handler,2, Functions::ConstantFunction<dim>(N2), collector_boundary_values);
-		MatrixTools::apply_boundary_values(collector_boundary_values, electron_system_matrix, electron_density, electron_rhs);
+	// VectorTools::interpolate_boundary_values(mapping, dof_handler,2, Functions::ConstantFunction<dim>(N2), collector_boundary_values);
+	// MatrixTools::apply_boundary_values(collector_boundary_values, electron_system_matrix, electron_density, electron_rhs);
 
-		VectorTools::interpolate_boundary_values(mapping, dof_handler,1, Functions::ConstantFunction<dim>(P1), emitter_boundary_values);
-		MatrixTools::apply_boundary_values(emitter_boundary_values, ion_system_matrix, ion_density, ion_rhs);
+	// VectorTools::interpolate_boundary_values(mapping, dof_handler,1, Functions::ConstantFunction<dim>(P1), emitter_boundary_values);
+	// MatrixTools::apply_boundary_values(emitter_boundary_values, ion_system_matrix, ion_density, ion_rhs);
 
-		VectorTools::interpolate_boundary_values(mapping, dof_handler,2, Functions::ConstantFunction<dim>(P2), collector_boundary_values);
-		MatrixTools::apply_boundary_values(collector_boundary_values, ion_system_matrix, ion_density, ion_rhs);
- }
+	// VectorTools::interpolate_boundary_values(mapping, dof_handler,2, Functions::ConstantFunction<dim>(P2), collector_boundary_values);
+	// MatrixTools::apply_boundary_values(collector_boundary_values, ion_system_matrix, ion_density, ion_rhs);
+
+	constraints_electron.clear();
+	constraints_ion.clear();    
+
+	DoFTools::make_hanging_node_constraints(dof_handler, constraints_electron); 
+	DoFTools::make_hanging_node_constraints(dof_handler, constraints_ion); 
+		
+	VectorTools::interpolate_boundary_values(mapping, dof_handler,1, Functions::ConstantFunction<dim>(N1), constraints_electron); 
+
+	VectorTools::interpolate_boundary_values(mapping, dof_handler,2, Functions::ConstantFunction<dim>(N2), constraints_electron);
+
+	VectorTools::interpolate_boundary_values(mapping, dof_handler,1, Functions::ConstantFunction<dim>(P1), constraints_ion);
+
+	VectorTools::interpolate_boundary_values(mapping, dof_handler,2, Functions::ConstantFunction<dim>(P2), constraints_ion);
+	
+	constraints_electron.close();
+	constraints_ion.close(); 
+}
 
 //----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -527,18 +544,30 @@ void Problem<dim>::solve_drift_diffusion()
 {
   SolverControl sc_dd;
   PETScWrappers::SparseDirectMUMPS solverMUMPS_ion(sc_dd);
-  solverMUMPS_ion.solve(ion_system_matrix, ion_density, ion_rhs);
+
+  PETScWrappers::MPI::Vector tmp_ion;
+  tmp_ion.reinit(local_owned_dofs, mpi_communicator);
+  tmp_ion = ion_density;
+  solverMUMPS_ion.solve(ion_system_matrix, tmp_ion, ion_rhs);
   //SparseDirectUMFPACK P_direct;
   //P_direct.initialize(ion_system_matrix);     //Initialize memory and call SparseDirectUMFPACK::factorize
   //P_direct.vmult(ion_density, ion_rhs);       //solve Ax = b with exact inv(A). store in ion_density
-  constraints.distribute(ion_density);        //apply constrains on ion_density vector
+  //constraints.distribute(ion_density);        //apply constrains on ion_density vector
+  constraints_ion.distribute(tmp_ion); 
+  ion_density = tmp_ion;
 
   PETScWrappers::SparseDirectMUMPS solverMUMPS_electron(sc_dd);
-  solverMUMPS_electron.solve(electron_system_matrix, electron_density, electron_rhs);
+  PETScWrappers::MPI::Vector tmp_electron;
+  tmp_electron.reinit(local_owned_dofs, mpi_communicator);
+  tmp_electron = electron_density;
+  solverMUMPS_electron.solve(electron_system_matrix, tmp_electron, electron_rhs);
   //SparseDirectUMFPACK N_direct;
   //N_direct.initialize(electron_system_matrix);
   //N_direct.vmult(electron_density, electron_rhs);
-  constraints.distribute(electron_density);
+  //constraints.distribute(electron_density);
+  constraints_electron.distribute(tmp_electron);
+  electron_density = tmp_electron;
+
 }
 
 //---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -569,8 +598,10 @@ void Problem<dim>::output_results(const unsigned int step)
 	std::string basename =
     "ValidationPN" + Utilities::int_to_string(step, 6) + "-";
 
-	std::string filename;
-    filename = "solution-" + Utilities::int_to_string(step, 3) + ".vtk";
+	std::string filename =
+    basename +
+    Utilities::int_to_string(triangulation.locally_owned_subdomain(), 4) +
+    ".vtu";
     // DataOutBase::VtkFlags vtk_flags;
     // vtk_flags.compression_level = DataOutBase::VtkFlags::ZlibCompressionLevel::best_speed;
     // data_out.set_flags(vtk_flags);
@@ -606,9 +637,7 @@ void Problem<dim>::run()
     
 	// SET UP THE MATRICES AND DOFHANDLER
 	setup_poisson();
-	cout << "setup_poisson() superato" << std::endl;
 	setup_drift_diffusion();
-	cout << "setup_drift_diffusion() superato" << std::endl;
     
 	//INITIALIZE THE VECTORS
 	PETScWrappers::MPI::Vector tmp1;
@@ -627,8 +656,6 @@ void Problem<dim>::run()
 	old_ion_density = tmp2;
 	old_electron_density = tmp3;
 
-	cout << "set up I.C. superato" << std::endl;
-    
 	// first step in the output
     output_results(0);
 
@@ -648,19 +675,15 @@ void Problem<dim>::run()
 	// SOLVE THE SYSTEM
     while ( (ion_err > ion_tol || electron_err > electron_tol) && step_number < 10)  //time <= max_time - 0.1*timestep
       {
-		cout << "ingresso nel while superato" << std::endl;
         ++step_number;
 
         // Solve Non-Linear Poisson
-		cout << "appena prima di newton_iteration_poisson()" << std::endl;
 		newton_iteration_poisson(tol, max_it);
-		cout << "newton_iteration_poisson superato" << std::endl;
 
 		//VectorTools::interpolate(mapping, dof_handler, ExactPotentialValues<dim>(), potential);
 
 		// Drift Diffusion Step
         assemble_drift_diffusion_matrix();
-		cout << "assemble_drift_diffusion_matrix() superato" << std::endl;
 
 		ion_system_matrix.copy_from(drift_diffusion_matrix);
 		electron_system_matrix.copy_from(electron_drift_diffusion_matrix);
@@ -684,14 +707,15 @@ void Problem<dim>::run()
         electron_rhs += forcing_terms;
         electron_system_matrix.copy_from(mass_matrix);
         electron_system_matrix.add(timestep, negative_drift_diffusion_matrix);*/
-
         apply_drift_diffusion_boundary_conditions();
         solve_drift_diffusion();
 
         // Update error for convergence
         electron_tol = 1.e-10*old_electron_density.linfty_norm();
         ion_tol = 1.e-10*old_ion_density.linfty_norm();
-
+		
+		PETScWrappers::MPI::Vector tmp;
+		tmp.reinit(local_owned_dofs, mpi_communicator);
         tmp = ion_density;
         tmp -= old_ion_density;
         ion_err = tmp.linfty_norm();
@@ -699,7 +723,6 @@ void Problem<dim>::run()
         tmp = electron_density;
         tmp -= old_electron_density;
         electron_err = tmp.linfty_norm();
-
         output_results(step_number);
 
         old_ion_density = ion_density;

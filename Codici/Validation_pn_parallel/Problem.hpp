@@ -84,6 +84,9 @@ class Problem{
     // AffineConstraints: This class deal with constrains on dof (eg: imposing Dir BCs we are constraining the value of the dof on the boundary)
     // the first is related to the drift diffusion system, the last two to the Poisson problem 
     AffineConstraints<double> constraints;
+    AffineConstraints<double> constraints_ion;
+    AffineConstraints<double> constraints_electron;
+
     AffineConstraints<double> constraints_poisson;
     AffineConstraints<double> zero_constraints_poisson;
     

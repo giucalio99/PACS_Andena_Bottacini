@@ -80,5 +80,5 @@ DEAL_II_INVOKE_AUTOPILOT()
 
 #Per eseguire mettersi nella cartelle build e fare:
 # a) cmake .. (solo se si ha modificato il file CMakeLists.txt, se no partire dal punto b)
-# b) cmake --build .
-# c) ./PN
+# b) cmake --build .  oppure   make 
+# c) ./PN   oppure    mpiexec -n 4 ./PN
