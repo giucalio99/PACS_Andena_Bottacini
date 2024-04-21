@@ -1,8 +1,11 @@
-#ifndef "GEOMETRY_HPP"
-#define "GEOMETRY_HPP
+#ifndef GEOMETRY_HPP
+#define GEOMETRY_HPP
 
 using namespace dealii;
 using namespace std;
+
+#include<cmath>
+#include<memory>
 
 // CLASS COLLECTOR GEOMETRY: implement the CollectorGeometry 
 template <int dim>
@@ -24,4 +27,4 @@ Tensor<1,2> get_collector_normal(const Point<2> a);
 
 #include "Geometry_impl.hpp"
 
-#endif //"GEOMETRY_HPP"
+#endif //GEOMETRY_HPP

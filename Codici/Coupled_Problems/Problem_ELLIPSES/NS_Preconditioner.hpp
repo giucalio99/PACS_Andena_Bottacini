@@ -1,7 +1,9 @@
-#ifndef "NS_PRECONDITIONER_AND_BCS"
-#define "NS_PRECONDITIONER_AND_BCS"
+#ifndef NS_PRECONDITIONER
+#define NS_PRECONDITIONER
 
-// ############################# NS preconditioner ###############################################################################
+using namespace dealii;
+using namespace std;
+
 
 template <class PreconditionerMp>
   class BlockSchurPreconditioner : public Subscriptor
@@ -24,7 +26,7 @@ template <class PreconditionerMp>
     SparseDirectUMFPACK              A_inverse;
   };
 
-// NS preconditioner implementation
+//--------------------- NS preconditioner implementation--------------------------------------------------------------------------------------
 
   template <class PreconditionerMp>
   BlockSchurPreconditioner<PreconditionerMp>::BlockSchurPreconditioner(
@@ -79,46 +81,5 @@ template <class PreconditionerMp>
     A_inverse.vmult(dst.block(0), utmp);
   }
 
-// ############################ Boundary Values #######################################################################################################
 
-template <int dim>
-class BoundaryValues : public Function<dim>
-{
-public:
- BoundaryValues()
-   : Function<dim>(dim + 1)
- {}
- virtual double value(const Point<dim> & p,
-					  const unsigned int component) const override;
-};
-
-// Boundary Values implementations
-
-template <int dim>
-double BoundaryValues<dim>::value(const Point<dim> & /*p*/,
-								 const unsigned int component) const
-{
- Assert(component < this->n_components,
-		ExcIndexRange(component, 0, this->n_components));
-
- if (component == 0) {
-	return 1.;
- }
-
- if (component == dim)
-		return p_over_rho;
-
- return 0.;
-}
-
-
-
-
-
-
-
-
-
-
-
-#endif "NS_PRECONDITIONER_AND_BCS"
+#endif //"NS_PRECONDITIONER"

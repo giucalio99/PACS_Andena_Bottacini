@@ -65,6 +65,7 @@
 #include "Problem.hpp"
 
 // da inserire gli include nei vari .hpp files
+// this is just the main for the ellipses problem
 
 int main()
 {

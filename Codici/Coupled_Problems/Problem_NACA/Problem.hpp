@@ -1,19 +1,19 @@
 #ifndef PROBLEM_HPP
 #define PROBLEM_HPP
 
-#include "Constants.hpp"
-#include "NS_Preconditioner.hpp"
-#include "Boundaries_Values.hpp"
-#include "Geometry.hpp"
-
 using namespace dealii;
 using namespace std;
+
+#include "Geometry.hpp"
+#include "Constants.hpp"
+#include "NS_Preconditioners.hpp"
+#include "Boundaries_Values.hpp"
 
 template <int dim>
 class Problem
 {
-public:
 
+public:
   Problem();
 
   void run();
@@ -94,7 +94,7 @@ private:
 
   void setup_drift_diffusion(const bool reinitialize_densities);
   void assemble_drift_diffusion_matrix();
-  void apply_drift_diffusion_boundary_conditions(Vector<double> &solution);  // commnetata in impl
+  void apply_drift_diffusion_boundary_conditions(Vector<double> &solution); //non trovata
   void solve_drift_diffusion();
   void perform_drift_diffusion_fixed_point_iteration_step();
 
@@ -103,22 +103,21 @@ private:
   void solve_nonlinear_navier_stokes_step(const bool nonzero_constraints);
   void navier_stokes_newton_iteration( const double tolerance,const unsigned int max_n_line_searches);
   void solve_navier_stokes();
-  void estimate_thrust(); // not used   commenatta in impl
+  void estimate_thrust();
 
-  void evaluate_emitter_current(); // optional    commentata in impl
   void evaluate_electric_field();
   void refine_mesh();
   void output_results(const unsigned int step);
 
 };
 
-// HELPER FUNCTIONS ( andrebbero modificate e messi punti con reference)
+// AUXILIARY FUNCTIONS
 void bernoulli (double x, double &bp, double &bn);
 double side_length (const Point<2> a, const Point<2> b);
 double triangle_denom(const Point<2> a, const Point<2> b, const Point<2> c);
 Tensor<1,2> face_normal(const Point<2> a, const Point<2> b);
 FullMatrix<double> compute_triangle_matrix(const Point<2> a, const Point<2> b, const Point<2> c, const double alpha12, const double alpha23, const double alpha31);
 
-#include "Problem_impl.hpp" // for the implementations of the templates methods
+#include"Problem_impl.hpp"
 
 #endif //"PROBLEM_HPP"
