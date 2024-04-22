@@ -148,7 +148,8 @@ class Problem{
     // DRIFIT DIFFUSION PROBLEM
     void setup_drift_diffusion();
     void assemble_drift_diffusion_matrix();
-    void apply_drift_diffusion_boundary_conditions();
+    //void apply_drift_diffusion_boundary_conditions();
+    void make_drift_diffusion_constraints();
     void solve_drift_diffusion();
     
     // OUTPUT

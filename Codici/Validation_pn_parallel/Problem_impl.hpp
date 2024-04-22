@@ -211,26 +211,32 @@ void Problem<dim>::setup_poisson()
 template <int dim>
 void Problem<dim>::setup_drift_diffusion()
 {   
-	//NB non richiama/riinizializza dof handler siccome mi aspetto di chiamare prima setup Poisson (vedi run()) 
+
+	DynamicSparsityPattern dsp_ion(locally_relevant_dofs);            //This class implements an array of compressed sparsity patterns (one for velocity and one for pressure in our case) that can be used to initialize objects of type BlockSparsityPattern.
+    DoFTools::make_sparsity_pattern(dof_handler, dsp_ion, constraints_ion);     //Compute which entries of a matrix built on the given dof_handler may possibly be nonzero, and create a sparsity pattern (assigning it to dsp) object that represents these nonzero locations.
+    SparsityTools::distribute_sparsity_pattern(dsp_ion, dof_handler.locally_owned_dofs(), mpi_communicator, locally_relevant_dofs);
+ 
 	ion_density.reinit(local_owned_dofs, locally_relevant_dofs, mpi_communicator);           //Resize the dimension of the vector ion_density to the number of the dof (unsigned int)
-	electron_density.reinit(local_owned_dofs, locally_relevant_dofs, mpi_communicator);      //Resize the dimension of the vector electron_density to the number of the dof (unsigned int)
     old_ion_density.reinit(local_owned_dofs, locally_relevant_dofs, mpi_communicator);       //Resize the dimension of the vector old_ion_density to the number of the dof (unsigned int)
-	old_electron_density.reinit(local_owned_dofs, locally_relevant_dofs, mpi_communicator);  //Resize the dimension of the vector old_electron_density to the number of the dof (unsigned int)
+	ion_rhs.reinit(local_owned_dofs, mpi_communicator);             //Resize the dimension of ion_rhs
 
 	constraints.clear();   //clear all the entries of constraints
 	DoFTools::make_hanging_node_constraints(dof_handler, constraints); // Compute the constraints resulting from the presence of hanging nodes. We put the result in constraints
 	constraints.close();   //close the object
 
-	DynamicSparsityPattern dsp(locally_relevant_dofs); // it mostly represents a SparsityPattern object that is kept compressed at all times, memory reason. We initialize a square pattern of size n_dof
-	DoFTools::make_sparsity_pattern(dof_handler, dsp, constraints, false); // Compute which entries of a matrix built on dof_handler may possibly be nonzero, and create a sparsity pattern object that represents these nonzero locations, we put it in dsp
-
-	ion_rhs.reinit(local_owned_dofs, mpi_communicator);             //Resize the dimension of ion_rhs
+	DynamicSparsityPattern dsp_electron(locally_relevant_dofs); // it mostly represents a SparsityPattern object that is kept compressed at all times, memory reason. We initialize a square pattern of size n_dof
+	DoFTools::make_sparsity_pattern(dof_handler, dsp_electron, constraints_electron); // Compute which entries of a matrix built on dof_handler may possibly be nonzero, and create a sparsity pattern object that represents these nonzero locations, we put it in dsp
+	SparsityTools::distribute_sparsity_pattern(dsp_electron, dof_handler.locally_owned_dofs(), mpi_communicator, locally_relevant_dofs);
+ 
+	electron_density.reinit(local_owned_dofs, locally_relevant_dofs, mpi_communicator);      //Resize the dimension of the vector electron_density to the number of the dof (unsigned int)
+	old_electron_density.reinit(local_owned_dofs, locally_relevant_dofs, mpi_communicator);  //Resize the dimension of the vector old_electron_density to the number of the dof (unsigned int)
 	electron_rhs.reinit(local_owned_dofs, mpi_communicator);        //Resize the dimension of electron_rhs
 
-	ion_system_matrix.reinit(local_owned_dofs, local_owned_dofs, dsp, mpi_communicator);               //Reinitialize sparse matrix ion_system_matrix with the given sparsity pattern. The latter tells the matrix how many nonzero elements there need to be reserved.
-	electron_system_matrix.reinit(local_owned_dofs, local_owned_dofs, dsp, mpi_communicator);          //Same 
-    drift_diffusion_matrix.reinit(local_owned_dofs, local_owned_dofs, dsp, mpi_communicator);          //Same 
-	electron_drift_diffusion_matrix.reinit(local_owned_dofs, local_owned_dofs, dsp, mpi_communicator); //Same
+	ion_system_matrix.reinit(local_owned_dofs, local_owned_dofs, dsp_ion, mpi_communicator);               //Reinitialize sparse matrix ion_system_matrix with the given sparsity pattern. The latter tells the matrix how many nonzero elements there need to be reserved.
+	drift_diffusion_matrix.reinit(local_owned_dofs, local_owned_dofs, dsp_ion, mpi_communicator);          //Same 
+	
+	electron_system_matrix.reinit(local_owned_dofs, local_owned_dofs, dsp_electron, mpi_communicator);          //Same 
+	electron_drift_diffusion_matrix.reinit(local_owned_dofs, local_owned_dofs, dsp_electron, mpi_communicator); //Same
 }
 
 
@@ -476,12 +482,11 @@ void Problem<dim>::assemble_drift_diffusion_matrix() //del singolo processore
 
 				}
 
-				constraints.distribute_local_to_global(A, cell_rhs,  A_local_dof_indices, drift_diffusion_matrix, ion_rhs);  //This function simultaneously writes elements into the "global" ( inteso come totale del processore) matrix vector, according to the constraints specified by the calling AffineConstraints
-				constraints.distribute_local_to_global(B, cell_rhs,  B_local_dof_indices, drift_diffusion_matrix, ion_rhs);  //Same
-				cout << "ion_rhs norm dopo distribute" << ion_rhs.linfty_norm() << endl;
+				constraints_ion.distribute_local_to_global(A, cell_rhs,  A_local_dof_indices, drift_diffusion_matrix, ion_rhs);  //This function simultaneously writes elements into the "global" ( inteso come totale del processore) matrix vector, according to the constraints specified by the calling AffineConstraints
+				constraints_ion.distribute_local_to_global(B, cell_rhs,  B_local_dof_indices, drift_diffusion_matrix, ion_rhs);  //Same
 
-				constraints.distribute_local_to_global(neg_A, cell_rhs,  A_local_dof_indices, electron_drift_diffusion_matrix, electron_rhs); //Same
-				constraints.distribute_local_to_global(neg_B, cell_rhs,  B_local_dof_indices, electron_drift_diffusion_matrix, electron_rhs); //same
+				constraints_electron.distribute_local_to_global(neg_A, cell_rhs,  A_local_dof_indices, electron_drift_diffusion_matrix, electron_rhs); //Same
+				constraints_electron.distribute_local_to_global(neg_B, cell_rhs,  B_local_dof_indices, electron_drift_diffusion_matrix, electron_rhs); //same
 		    }
 	
 	drift_diffusion_matrix.compress(VectorOperation::add);       //Added compress like in other assemble functions
@@ -494,8 +499,10 @@ void Problem<dim>::assemble_drift_diffusion_matrix() //del singolo processore
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 //this method apply the chosen Dirichlet boundary values for the emitter and the collector in the drift diffusion Matrix/vector
+// template <int dim>
+// void Problem<dim>::apply_drift_diffusion_boundary_conditions()
 template <int dim>
-void Problem<dim>::apply_drift_diffusion_boundary_conditions()
+void Problem<dim>::make_drift_diffusion_constraints()
 {       
 	//create maps to store the boundary values on the collector and the emitter
 	std::map<types::global_dof_index, double> collector_boundary_values;
@@ -549,20 +556,19 @@ void Problem<dim>::solve_drift_diffusion()
   PETScWrappers::MPI::Vector tmp_ion;
   tmp_ion.reinit(local_owned_dofs, mpi_communicator);
   //tmp_ion = ion_density;
-  cout << "tmp_ion prima " << tmp_ion.linfty_norm() << endl;
+  cout << "tmp_ion prima solverMUMPS " << tmp_ion.linfty_norm() << endl;
   cout << "ion_system_matrix norm " << ion_system_matrix.linfty_norm() << endl;
   //cout << "ion_rhs norm " << ion_rhs.linfty_norm() << endl;
   cout << "drift_diffusion_matrix norm " << drift_diffusion_matrix.linfty_norm() << endl;
   cout << "electron_drift_diffusion_matrix norm " << electron_drift_diffusion_matrix.linfty_norm() << endl;
-  cout << "electron_rhs norm " << ion_rhs.linfty_norm() << endl;
+  cout << "electron_rhs norm " << electron_rhs.linfty_norm() << endl;
   solverMUMPS_ion.solve(ion_system_matrix, tmp_ion, ion_rhs);
   //SparseDirectUMFPACK P_direct;
   //P_direct.initialize(ion_system_matrix);     //Initialize memory and call SparseDirectUMFPACK::factorize
   //P_direct.vmult(ion_density, ion_rhs);       //solve Ax = b with exact inv(A). store in ion_density
   //constraints.distribute(ion_density);        //apply constrains on ion_density vector
-  cout << "tmp_ion dopo " << tmp_ion.linfty_norm() << endl;
+  cout << "tmp_ion dopo solverMUMPS" << tmp_ion.linfty_norm() << endl;
   constraints_ion.distribute(tmp_ion); 
-  cout << "tmp_ion dopo dopo " << tmp_ion.linfty_norm() << endl;
   ion_density = tmp_ion;
 
   PETScWrappers::SparseDirectMUMPS solverMUMPS_electron(sc_dd);
@@ -660,6 +666,8 @@ void Problem<dim>::run()
     
 	// SET UP THE MATRICES AND DOFHANDLER
 	setup_poisson();
+
+	make_drift_diffusion_constraints();
 	setup_drift_diffusion();
     
 	//INITIALIZE THE VECTORS
@@ -699,6 +707,7 @@ void Problem<dim>::run()
     while ( (ion_err > ion_tol || electron_err > electron_tol) && step_number < 10)  //time <= max_time - 0.1*timestep
       {
         ++step_number;
+		std::cout << "COUPLING STEP: " << step_number << std::endl;
 
         // Solve Non-Linear Poisson
 		newton_iteration_poisson(tol, max_it);
@@ -730,7 +739,8 @@ void Problem<dim>::run()
         electron_rhs += forcing_terms;
         electron_system_matrix.copy_from(mass_matrix);
         electron_system_matrix.add(timestep, negative_drift_diffusion_matrix);*/
-        apply_drift_diffusion_boundary_conditions();
+
+        //apply_drift_diffusion_boundary_conditions();
         solve_drift_diffusion();
 
         // Update error for convergence
