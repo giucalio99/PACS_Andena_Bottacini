@@ -71,6 +71,7 @@ template <int dim>
 void create_triangulation(parallel::distributed::Triangulation<dim> &triangulation)
 {
 	const std::string filename = "../../../Structured_Meshes/Structured_Square.msh"; //name of the .msh file
+  //const std::string filename = "../../../Mesh_Menessini/small_square.msh";
 	ifstream input_file(filename); //ATTENZIONE, PERCHè NON CE OPEN?
 	cout << "Reading from " << filename << endl; //screen comment
 	GridIn<2>  grid_in; //This class implements an input mechanism for grid data. It allows to read a grid structure into a triangulation object

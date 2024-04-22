@@ -478,6 +478,7 @@ void Problem<dim>::assemble_drift_diffusion_matrix() //del singolo processore
 
 				constraints.distribute_local_to_global(A, cell_rhs,  A_local_dof_indices, drift_diffusion_matrix, ion_rhs);  //This function simultaneously writes elements into the "global" ( inteso come totale del processore) matrix vector, according to the constraints specified by the calling AffineConstraints
 				constraints.distribute_local_to_global(B, cell_rhs,  B_local_dof_indices, drift_diffusion_matrix, ion_rhs);  //Same
+				cout << "ion_rhs norm dopo distribute" << ion_rhs.linfty_norm() << endl;
 
 				constraints.distribute_local_to_global(neg_A, cell_rhs,  A_local_dof_indices, electron_drift_diffusion_matrix, electron_rhs); //Same
 				constraints.distribute_local_to_global(neg_B, cell_rhs,  B_local_dof_indices, electron_drift_diffusion_matrix, electron_rhs); //same
@@ -547,19 +548,27 @@ void Problem<dim>::solve_drift_diffusion()
 
   PETScWrappers::MPI::Vector tmp_ion;
   tmp_ion.reinit(local_owned_dofs, mpi_communicator);
-  tmp_ion = ion_density;
+  //tmp_ion = ion_density;
+  cout << "tmp_ion prima " << tmp_ion.linfty_norm() << endl;
+  cout << "ion_system_matrix norm " << ion_system_matrix.linfty_norm() << endl;
+  //cout << "ion_rhs norm " << ion_rhs.linfty_norm() << endl;
+  cout << "drift_diffusion_matrix norm " << drift_diffusion_matrix.linfty_norm() << endl;
+  cout << "electron_drift_diffusion_matrix norm " << electron_drift_diffusion_matrix.linfty_norm() << endl;
+  cout << "electron_rhs norm " << ion_rhs.linfty_norm() << endl;
   solverMUMPS_ion.solve(ion_system_matrix, tmp_ion, ion_rhs);
   //SparseDirectUMFPACK P_direct;
   //P_direct.initialize(ion_system_matrix);     //Initialize memory and call SparseDirectUMFPACK::factorize
   //P_direct.vmult(ion_density, ion_rhs);       //solve Ax = b with exact inv(A). store in ion_density
   //constraints.distribute(ion_density);        //apply constrains on ion_density vector
+  cout << "tmp_ion dopo " << tmp_ion.linfty_norm() << endl;
   constraints_ion.distribute(tmp_ion); 
+  cout << "tmp_ion dopo dopo " << tmp_ion.linfty_norm() << endl;
   ion_density = tmp_ion;
 
   PETScWrappers::SparseDirectMUMPS solverMUMPS_electron(sc_dd);
   PETScWrappers::MPI::Vector tmp_electron;
   tmp_electron.reinit(local_owned_dofs, mpi_communicator);
-  tmp_electron = electron_density;
+  //tmp_electron = electron_density;
   solverMUMPS_electron.solve(electron_system_matrix, tmp_electron, electron_rhs);
   //SparseDirectUMFPACK N_direct;
   //N_direct.initialize(electron_system_matrix);
@@ -576,50 +585,64 @@ void Problem<dim>::solve_drift_diffusion()
 template <int dim>
 void Problem<dim>::output_results(const unsigned int step)
 {
-    DataOut<dim> data_out;
+    // DataOut<dim> data_out;
+    // data_out.attach_dof_handler(dof_handler);
+
+    // data_out.add_data_vector(ion_density, "Ion_Density");
+    // data_out.add_data_vector(electron_density, "Electron_Density");
+    // data_out.add_data_vector(potential, "Potential");
+    // //data_out.build_patches();
+
+	// Vector<float> subdomain(triangulation.n_active_cells());
+    // for (unsigned int i = 0; i < subdomain.size(); ++i)
+    // {
+    //     subdomain(i) = triangulation.locally_owned_subdomain();           //For distributed parallel triangulations this function returns the subdomain id of those cells that are owned by the current processor
+    // }
+    // data_out.add_data_vector(subdomain, "subdomain");
+
+	// data_out.build_patches(fe.degree + 1);
+
+	// std::string basename =
+    // "ValidationPN" + Utilities::int_to_string(step, 6) + "-";
+
+	// std::string filename =
+    // basename +
+    // Utilities::int_to_string(triangulation.locally_owned_subdomain(), 4) +
+    // ".vtu";
+    // // DataOutBase::VtkFlags vtk_flags;
+    // // vtk_flags.compression_level = DataOutBase::VtkFlags::ZlibCompressionLevel::best_speed;
+    // // data_out.set_flags(vtk_flags);
+    // std::ofstream output(filename);
+    // data_out.write_vtk(output);
+
+	// static std::vector<std::pair<double, std::string>> steps_and_names;
+    // if (Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
+    // {
+    //     for (unsigned int i = 0; i < Utilities::MPI::n_mpi_processes(mpi_communicator); ++i)
+    //     {
+    //         steps_and_names.push_back(
+    //         {step,
+    //         basename + Utilities::int_to_string(i, 4) + ".vtu"});
+    //     }
+    //     std::ofstream pvd_output("ValidationPN.pvd");
+    //     DataOutBase::write_pvd_record(pvd_output, steps_and_names);
+    // }
+
+	DataOut<dim> data_out;
     data_out.attach_dof_handler(dof_handler);
 
-    data_out.add_data_vector(old_ion_density, "Old_Ion_Density");
-    data_out.add_data_vector(old_electron_density, "Old_Electron_Density");
     data_out.add_data_vector(ion_density, "Ion_Density");
     data_out.add_data_vector(electron_density, "Electron_Density");
     data_out.add_data_vector(potential, "Potential");
-    //data_out.build_patches();
+    data_out.build_patches();
 
-	Vector<float> subdomain(triangulation.n_active_cells());
-    for (unsigned int i = 0; i < subdomain.size(); ++i)
-    {
-        subdomain(i) = triangulation.locally_owned_subdomain();           //For distributed parallel triangulations this function returns the subdomain id of those cells that are owned by the current processor
-    }
-    data_out.add_data_vector(subdomain, "subdomain");
-
-	data_out.build_patches(fe.degree + 1);
-
-	std::string basename =
-    "ValidationPN" + Utilities::int_to_string(step, 6) + "-";
-
-	std::string filename =
-    basename +
-    Utilities::int_to_string(triangulation.locally_owned_subdomain(), 4) +
-    ".vtu";
-    // DataOutBase::VtkFlags vtk_flags;
-    // vtk_flags.compression_level = DataOutBase::VtkFlags::ZlibCompressionLevel::best_speed;
-    // data_out.set_flags(vtk_flags);
+    std::string filename;
+    filename = "solution-" + Utilities::int_to_string(step, 3) + ".vtk";
+    DataOutBase::VtkFlags vtk_flags;
+    vtk_flags.compression_level = DataOutBase::VtkFlags::ZlibCompressionLevel::best_speed;
+    data_out.set_flags(vtk_flags);
     std::ofstream output(filename);
     data_out.write_vtk(output);
-
-	static std::vector<std::pair<double, std::string>> steps_and_names;
-    if (Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
-    {
-        for (unsigned int i = 0; i < Utilities::MPI::n_mpi_processes(mpi_communicator); ++i)
-        {
-            steps_and_names.push_back(
-            {step,
-            basename + Utilities::int_to_string(i, 4) + ".vtu"});
-        }
-        std::ofstream pvd_output("ValidationPN.pvd");
-        DataOutBase::write_pvd_record(pvd_output, steps_and_names);
-    }
 }
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -713,17 +736,22 @@ void Problem<dim>::run()
         // Update error for convergence
         electron_tol = 1.e-10*old_electron_density.linfty_norm();
         ion_tol = 1.e-10*old_ion_density.linfty_norm();
+
+		std::cout << "norm of ion_density: " << ion_density.linfty_norm() << std::endl;
+		std::cout << "norm of old_ion_density: " << old_ion_density.linfty_norm() << std::endl;
 		
 		PETScWrappers::MPI::Vector tmp;
 		tmp.reinit(local_owned_dofs, mpi_communicator);
         tmp = ion_density;
         tmp -= old_ion_density;
         ion_err = tmp.linfty_norm();
+		std::cout << "ion_err: " << ion_err << std::endl;
 
         tmp = electron_density;
         tmp -= old_electron_density;
         electron_err = tmp.linfty_norm();
         output_results(step_number);
+		std::cout << "electron_err: " << electron_err << std::endl;
 
         old_ion_density = ion_density;
         old_electron_density = electron_density;
