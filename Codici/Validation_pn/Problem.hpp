@@ -43,6 +43,9 @@
 #include <deal.II/lac/petsc_precondition.h>
 #include <deal.II/lac/petsc_solver.h>
 
+#include <deal.II/lac/solver_gmres.h>
+#include <deal.II/lac/solver_cg.h>
+
 #include <deal.II/distributed/grid_refinement.h>
 #include <deal.II/distributed/solution_transfer.h>
 #include <deal.II/distributed/tria.h>

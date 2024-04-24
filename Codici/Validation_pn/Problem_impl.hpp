@@ -1,6 +1,8 @@
 using namespace dealii;
 using namespace std;
 
+#include <chrono>
+
 //--------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 // CONSTRUCTOR
@@ -157,9 +159,29 @@ void Problem<dim>::assemble_nonlinear_poisson()
 template <int dim>
 void Problem<dim>::solve_poisson()
 {
-  SparseDirectUMFPACK A_direct;
-  A_direct.initialize(system_matrix_poisson);         //initialize the matrix of the Poisson system
-  A_direct.vmult(poisson_newton_update, poisson_rhs); //this function solve system Ax = b -> x = inv(A)b using the EXACT inverse of matrix system_matrix_poisson. store the result in poisson_newton_update
+	std::cout << "poisson_newton_update prima del solve " << poisson_newton_update.linfty_norm() << std::endl;
+  	std::cout << "system_matrix_poisson prima del solve " << system_matrix_poisson.linfty_norm() << std::endl;
+  	std::cout << "poisson_rhs prima del solve " << poisson_rhs.linfty_norm() << std::endl;
+
+	// Dichiarazioni delle variabili necessarie
+    std::chrono::steady_clock::time_point start, end;
+    std::chrono::duration<double> elapsed_seconds;
+
+    // Inizio del cronometraggio
+    start = std::chrono::steady_clock::now();
+
+	SparseDirectUMFPACK A_direct;
+	A_direct.initialize(system_matrix_poisson);         //initialize the matrix of the Poisson system
+	A_direct.vmult(poisson_newton_update, poisson_rhs); //this function solve system Ax = b -> x = inv(A)b using the EXACT inverse of matrix system_matrix_poisson. store the result in poisson_newton_update
+
+   // Fine del cronometraggio
+    end = std::chrono::steady_clock::now();
+
+    // Calcolo del tempo trascorso
+    elapsed_seconds = end - start;
+
+    // Stampa del tempo trascorso
+    std::cout << "La funzione ha impiegato " << elapsed_seconds.count() << " secondi." << std::endl;
 
   zero_constraints_poisson.distribute(poisson_newton_update); //Set all constrained degrees of freedom to values so that the constraints are satisfied, basically we impose the zero constarins in poisson_newton_update vector
 }
@@ -427,6 +449,7 @@ void Problem<dim>::run()
 	VectorTools::interpolate(mapping, dof_handler, PotentialValues<dim>(), potential);
 	VectorTools::interpolate(mapping, dof_handler, IonInitialValues<dim>(), old_ion_density);
 	VectorTools::interpolate(mapping, dof_handler, ElectronInitialValues<dim>(), old_electron_density);
+	
     
 	// first step in the output
     output_results(0);
@@ -448,6 +471,7 @@ void Problem<dim>::run()
     while ( (ion_err > ion_tol || electron_err > electron_tol) && step_number < 10)  //time <= max_time - 0.1*timestep
       {
         ++step_number;
+		std::cout << "COUPLING STEP: " << step_number << std::endl;
 
         // Solve Non-Linear Poisson
 		newton_iteration_poisson(tol, max_it);

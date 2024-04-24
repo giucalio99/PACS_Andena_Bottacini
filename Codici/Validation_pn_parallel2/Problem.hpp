@@ -82,14 +82,12 @@ class Problem{
     unsigned int step_number;
     
     // AffineConstraints: This class deal with constrains on dof (eg: imposing Dir BCs we are constraining the value of the dof on the boundary)
-    // the first is related to the drift diffusion system, the last two to the Poisson problem 
-    AffineConstraints<double> constraints;
-    AffineConstraints<double> constraints_ion;
-    AffineConstraints<double> constraints_electron;
-
+    // the first is related to the drift diffusion system, the last two to the Poisson problem
     AffineConstraints<double> constraints_poisson;
     AffineConstraints<double> zero_constraints_poisson;
-    
+
+    AffineConstraints<double> constraints_ion;
+    AffineConstraints<double> constraints_electron;
     // SparseMatrix: This class implements the functionality to store matrix entry values in the locations denoted by a SparsityPattern.
     // The namescope PETScWrappers is needed to perform the computations in parallel.
     // The elements of a SparsityPattern, corresponding to the places where SparseMatrix objects can store nonzero entries, are stored row-by-row
@@ -123,7 +121,7 @@ class Problem{
     Timer timer;
 
     // TO PARALLELIZE
-    IndexSet local_owned_dofs;       //IndexSet is a class that represents a subset of indices among a larger set. For example, it can be used to denote the set of degrees of freedom that belongs to a particular subdomain.
+    IndexSet locally_owned_dofs;       //IndexSet is a class that represents a subset of indices among a larger set. For example, it can be used to denote the set of degrees of freedom that belongs to a particular subdomain.
 	  IndexSet locally_relevant_dofs; 
     //The presence of two IndexSet objects that denote which sets of degrees of freedom (and associated elements of solution and right hand side vectors)
     //we own on the current processor and which we need (as ghost elements) for the algorithms in this program to work.
@@ -136,20 +134,24 @@ class Problem{
     // MESH
     //void create_mesh();   
     
-    // POISSON PROBLEM
+    // Setting
+    void setup_dofs();
+    void make_constraints_poisson();
+    void make_constraints_drift_diffusion();
+
+    void initialize_system_poisson();
+    void initialize_system_drift_diffusion();
+
     void assemble_laplace_matrix();
 	  void assemble_mass_matrix();
-    
-    void setup_poisson();
+
+    //Poisson problem
     void assemble_nonlinear_poisson();
     void solve_poisson();
     void newton_iteration_poisson(const double tol, const unsigned int max_iterations);
     
-    // DRIFIT DIFFUSION PROBLEM
-    void setup_drift_diffusion();
+    //Drift-diffusion problem
     void assemble_drift_diffusion_matrix();
-    // void apply_drift_diffusion_boundary_conditions();
-    void make_drift_diffusion_constraints();
     void solve_drift_diffusion();
     
     // OUTPUT

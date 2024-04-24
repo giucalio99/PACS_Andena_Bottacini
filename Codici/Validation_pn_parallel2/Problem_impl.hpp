@@ -19,51 +19,134 @@ Problem<dim>::Problem(parallel::distributed::Triangulation<dim> &tria)
 
 //---------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-// // This method create, or import, the mesh over which we perform the simulation. Moreover it sets the unique tag of the boundary
-// template <int dim>
-// void Problem<dim>::create_mesh()
-// {
-//     // const Point<dim> bottom_left(0.,-L/20.);  //bottom left Point of the rectangular mesh
-// 	// const Point<dim> top_right(L,L/20.);      //top right Point of the rectangular domain
-    
-// 	// NB: these points are needed if you want to define a mesh starting from deal ii, otherwise use an input file as follows:
+template <int dim>
+void Problem<dim>::setup_dofs()
+{
+    // The first step is to associate DoFs with a given mesh.
+    dof_handler.distribute_dofs(fe);     //Distribute the dof needed for the given fe on the triangulation that i passed in the constructor   // We renumber the components to have all velocity DoFs come before
+    // the pressure DoFs to be able to split the solution vector in two blocks
+    // which are separately accessed in the block preconditioner.
+    DoFRenumbering::Cuthill_McKee(dof_handler);                      //Renumber the degrees of freedom according to the Cuthill-McKee method.
 
-// 	// For a structured mesh (**commento di menessini**)
-// 	//GridGenerator::subdivided_hyper_rectangle(triangulation, {100,}, bottom_left, top_right);
+    locally_owned_dofs = dof_handler.locally_owned_dofs();
 
-//     // we read from input file the mesh already generated
-// 	const std::string filename = "../../../Struct/small_square.msh"; //name of the .msh file
-// 	ifstream input_file(filename); //ATTENZIONE, PERCHè NON CE OPEN?
-// 	cout << "Reading from " << filename << endl; //screen comment
-// 	GridIn<2>       grid_in; //This class implements an input mechanism for grid data. It allows to read a grid structure into a triangulation object
-// 	grid_in.attach_triangulation(triangulation); //we pass to grid_in our (empty) triangulation
-// 	grid_in.read_msh(input_file); // read the msh file
+    DoFTools::extract_locally_relevant_dofs(dof_handler, locally_relevant_dofs);     //Extract the set of global DoF indices that are active on the current DoFHandler. This is the union of DoFHandler::locally_owned_dofs() and the DoF indices on all ghost cells.
 
-
-
-//     //now we identify the boundaries of the mesh
-// 	// for (auto &face : triangulation.active_face_iterators())    // we look only at active face, namely only at those faces that carry dofs, these cells are not father of other sub cells
-// 	// {
-// 	//   if (face->at_boundary())  // if we are looking at a face on the boundary (in our 2D case and edge on the boundary). at_boundary() return true-false values
-// 	//   {
-// 	// 	  face->set_boundary_id(0);             // we associate this edge with the unique ID zero (this will be the ID of the boundary faces on up/bottom boundaries)
-// 	// 	  const Point<dim> c = face->center();  // we compute the geometrical center of the edge that is stored in the face iterator
-
-// 	// 	  	  if ( c[1] < top_right[1] && c[1] > bottom_left[1]) { // if the y coordinate of the Point c is less than TR point and grater than BL point (basically if we are on the left/right boundary)
-
-// 	// 	  		  if (c[0] < (top_right[0] + bottom_left[0])/2.) { // if we are on the left boundary edge
-// 	// 	  			  face->set_boundary_id(1); //ID of the boundary faces on the left 
-// 	// 	  		  } else
-// 	// 	  			face->set_boundary_id(2);  //ID of the boundary faces on the right
-// 	// 	  	  }
-// 	// 	  }
-// 	// }
-
-// 	//  triangulation.refine_global(3); //globally refine the mesh 3 times, namely each cells is subdivided into 3 more cells--> increase mesh resolution
-// }
+    pcout << "   Number of active cells: "
+        << triangulation.n_global_active_cells() << std::endl
+        << "   Number of degrees of freedom: " << dof_handler.n_dofs() << std::endl;
+}
 
 //--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
+template <int dim>
+void Problem<dim>::make_constraints_poisson()
+{
+	constraints_poisson.clear();  // Reset the flag determining whether new entries are accepted or not
+	zero_constraints_poisson.clear(); 
+
+	constraints_poisson.reinit(locally_relevant_dofs);      
+    zero_constraints_poisson.reinit(locally_relevant_dofs);
+
+	DoFTools::make_hanging_node_constraints(dof_handler, constraints_poisson);       // Compute the constraints resulting from the presence of hanging nodes. We put the result in constraints_poisson
+	DoFTools::make_hanging_node_constraints(dof_handler, zero_constraints_poisson);
+
+	VectorTools::interpolate_boundary_values(dof_handler, 1, Functions::ConstantFunction<dim>(V_E*log(N1/N_0)), constraints_poisson); // Set the values of constraints_poisson on the left edge boundary of the domain
+	VectorTools::interpolate_boundary_values(dof_handler, 2, Functions::ConstantFunction<dim>(V_E*log(N2/N_0)), constraints_poisson); // Set the values of constraints_poisson on the right edge boundary of the domain
+	
+	VectorTools::interpolate_boundary_values(dof_handler, 1, Functions::ZeroFunction<dim>(), zero_constraints_poisson); // Set the values of zero_constraints_poisson on the left edge boundary of the domain to zero
+	VectorTools::interpolate_boundary_values(dof_handler, 2, Functions::ZeroFunction<dim>(), zero_constraints_poisson); // Set the values of zero_constraints_poisson on the right edge boundary of the domain to zero (homo Dirichlet)
+	constraints_poisson.close();
+	zero_constraints_poisson.close();
+}
+
+//--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+template <int dim>
+void Problem<dim>::make_constraints_drift_diffusion()
+{   
+	constraints_electron.clear();
+	constraints_ion.clear();   
+
+	constraints_electron.reinit(locally_relevant_dofs);      
+    constraints_ion.reinit(locally_relevant_dofs); 
+
+	DoFTools::make_hanging_node_constraints(dof_handler, constraints_electron); 
+	DoFTools::make_hanging_node_constraints(dof_handler, constraints_ion); 
+	
+	VectorTools::interpolate_boundary_values(mapping, dof_handler,1, Functions::ConstantFunction<dim>(N1), constraints_electron); 
+
+	VectorTools::interpolate_boundary_values(mapping, dof_handler,2, Functions::ConstantFunction<dim>(N2), constraints_electron);
+
+	VectorTools::interpolate_boundary_values(mapping, dof_handler,1, Functions::ConstantFunction<dim>(P1), constraints_ion);
+
+	VectorTools::interpolate_boundary_values(mapping, dof_handler,2, Functions::ConstantFunction<dim>(P2), constraints_ion);
+	
+	constraints_electron.close();
+	constraints_ion.close(); 
+}
+
+//--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+template <int dim>
+void Problem<dim>::initialize_system_poisson()
+{
+	system_matrix_poisson.clear();
+    laplace_matrix_poisson.clear();
+    mass_matrix_poisson.clear();
+
+	// SPARSITY PATTERN
+	DynamicSparsityPattern dsp(locally_relevant_dofs);      // it mostly represents a SparsityPattern object that is kept compressed at all times, memory reason. We initialize a square pattern of size n_dof
+	DoFTools::make_sparsity_pattern(dof_handler, dsp, constraints_poisson, true);    // Compute which entries of a matrix built on the given dof_handler may possibly be nonzero, and create a sparsity pattern object that represents these nonzero locations.
+    
+	SparsityTools::distribute_sparsity_pattern(dsp, dof_handler.locally_owned_dofs(), mpi_communicator, locally_relevant_dofs);
+
+	 // INITIALIZATION OF SYSTEM MATRICES AND RHS											 
+	system_matrix_poisson.reinit(locally_owned_dofs, locally_owned_dofs, dsp, mpi_communicator); // Reinitialize the sparse matrix with the given sparsity pattern. The latter tells the matrix how many nonzero elements there need to be reserved.
+    laplace_matrix_poisson.reinit(locally_owned_dofs, locally_owned_dofs, dsp, mpi_communicator);// As above
+	mass_matrix_poisson.reinit(locally_owned_dofs, locally_owned_dofs, dsp, mpi_communicator);   // As above
+	poisson_rhs.reinit(locally_owned_dofs, mpi_communicator); // initialize the rhs vector
+
+	poisson_newton_update.reinit(locally_owned_dofs, mpi_communicator);
+	
+	assemble_laplace_matrix();
+	assemble_mass_matrix();
+}
+
+//--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+template <int dim>
+void Problem<dim>::initialize_system_drift_diffusion()
+{
+    electron_system_matrix.clear();
+    electron_drift_diffusion_matrix.clear();
+	ion_system_matrix.clear();
+	drift_diffusion_matrix.clear();
+    
+	DynamicSparsityPattern dsp_electron(locally_relevant_dofs); // it mostly represents a SparsityPattern object that is kept compressed at all times, memory reason. We initialize a square pattern of size n_dof
+	DoFTools::make_sparsity_pattern(dof_handler, dsp_electron, constraints_electron); // Compute which entries of a matrix built on dof_handler may possibly be nonzero, and create a sparsity pattern object that represents these nonzero locations, we put it in dsp
+	SparsityTools::distribute_sparsity_pattern(dsp_electron, locally_owned_dofs, mpi_communicator, locally_relevant_dofs);
+ 
+	electron_system_matrix.reinit(locally_owned_dofs, locally_owned_dofs, dsp_electron, mpi_communicator);          //Same 
+	electron_drift_diffusion_matrix.reinit(locally_owned_dofs, locally_owned_dofs, dsp_electron, mpi_communicator); //Same                                
+
+	DynamicSparsityPattern dsp_ion(locally_relevant_dofs);            //This class implements an array of compressed sparsity patterns (one for velocity and one for pressure in our case) that can be used to initialize objects of type BlockSparsityPattern.
+    DoFTools::make_sparsity_pattern(dof_handler, dsp_ion, constraints_ion);     //Compute which entries of a matrix built on the given dof_handler may possibly be nonzero, and create a sparsity pattern (assigning it to dsp) object that represents these nonzero locations.
+    SparsityTools::distribute_sparsity_pattern(dsp_ion, locally_owned_dofs, mpi_communicator, locally_relevant_dofs);
+	
+    ion_system_matrix.reinit(locally_owned_dofs, locally_owned_dofs, dsp_ion, mpi_communicator);               //Reinitialize sparse matrix ion_system_matrix with the given sparsity pattern. The latter tells the matrix how many nonzero elements there need to be reserved.
+	drift_diffusion_matrix.reinit(locally_owned_dofs, locally_owned_dofs, dsp_ion, mpi_communicator);          //Same 
+	
+
+	electron_density.reinit(locally_owned_dofs, locally_relevant_dofs, mpi_communicator);      //Resize the dimension of the vector electron_density to the number of the dof (unsigned int)
+	old_electron_density.reinit(locally_owned_dofs, locally_relevant_dofs, mpi_communicator);  //Resize the dimension of the vector old_electron_density to the number of the dof (unsigned int)
+	electron_rhs.reinit(locally_owned_dofs, mpi_communicator); 
+
+	ion_density.reinit(locally_owned_dofs, locally_relevant_dofs, mpi_communicator);           //Resize the dimension of the vector ion_density to the number of the dof (unsigned int)
+    old_ion_density.reinit(locally_owned_dofs, locally_relevant_dofs, mpi_communicator);       //Resize the dimension of the vector old_ion_density to the number of the dof (unsigned int)
+	ion_rhs.reinit(locally_owned_dofs, mpi_communicator); 
+
+	potential.reinit(locally_owned_dofs, locally_relevant_dofs, mpi_communicator); 
+}
+
+//--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 template <int dim>
 void Problem<dim>::assemble_laplace_matrix()
 {
@@ -150,103 +233,7 @@ void Problem<dim>::assemble_mass_matrix()
 	mass_matrix_poisson.compress(VectorOperation::add);
 }
 
-//--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
-// This method set up the Poissson problem. In particular it enumerates the dof on the given mesh, it sets the constraints and the boundary conditions of the problem
-// it defines the sparsity patterns and initialize the matrices and the vecotrs of the problem.
-template <int dim>
-void Problem<dim>::setup_poisson()
-{   
-	// INITIALIZATION OF THE DOF AND VECTORS
-	dof_handler.distribute_dofs(fe);  //Go through the triangulation and "distribute" the dof needed for the given finite element. We also enumerate them whereever they are (internal or boundary)
-	DoFRenumbering::Cuthill_McKee(dof_handler);  //We want particular distribution of dofs
-    
-	// now we want provide to the index sets information about which degrees of freedom are owned by the current processor
-	// (this information will be used to initialize solution and right hand side vectors, and the system matrix, indicating 
-	// which elements to store on the current processor and which to expect to be stored somewhere else); and an index set that indicates 
-	// which degrees of freedom are locally relevant (i.e. live on cells that the current processor owns or on the layer of ghost cells around the locally owned cells; we need all of these degrees of freedom, for example, to estimate the error on the local cells).
-	local_owned_dofs = dof_handler.locally_owned_dofs();
-	DoFTools::extract_locally_relevant_dofs(dof_handler,locally_relevant_dofs);   
-
-    // initialize the LOCAL vectors
-	potential.reinit(local_owned_dofs, locally_relevant_dofs, mpi_communicator); // Reinit as a vector with ghost elements
-	poisson_newton_update.reinit(local_owned_dofs, mpi_communicator);            // Reinit as a vector without ghost elements
-    
-	// CONSTRAIN PROBLEM AND BOUNDARY VALUES
-	constraints_poisson.clear();  // Reset the flag determining whether new entries are accepted or not
-	// CODICE NUOVO  constraints_poisson.reinit(locally_relevant_dofs);
-	DoFTools::make_hanging_node_constraints(dof_handler, constraints_poisson); // Compute the constraints resulting from the presence of hanging nodes. We put the result in constraints_poisson
-	VectorTools::interpolate_boundary_values(dof_handler, 1, Functions::ConstantFunction<dim>(V_E*log(N1/N_0)), constraints_poisson); // Set the values of constraints_poisson on the left edge boundary of the domain
-	VectorTools::interpolate_boundary_values(dof_handler, 2, Functions::ConstantFunction<dim>(V_E*log(N2/N_0)), constraints_poisson); // Set the values of constraints_poisson on the right edge boundary of the domain
-	constraints_poisson.close();  // Close the filling of entries and sort the lines and columns
-
-	// Used for the update term in Newton's method
-	zero_constraints_poisson.clear();  // As before but on zero_constraints_poisson
-	// CODICE NUOVO zero_constraints_poisson.reinit(locally_relevant_dofs);
-	DoFTools::make_hanging_node_constraints(dof_handler, zero_constraints_poisson);
-	VectorTools::interpolate_boundary_values(dof_handler, 1, Functions::ZeroFunction<dim>(), zero_constraints_poisson); // Set the values of zero_constraints_poisson on the left edge boundary of the domain to zero
-	VectorTools::interpolate_boundary_values(dof_handler, 2, Functions::ZeroFunction<dim>(), zero_constraints_poisson); // Set the values of zero_constraints_poisson on the right edge boundary of the domain to zero (homo Dirichlet)
-	zero_constraints_poisson.close();
-    
-	// SPARSITY PATTERN
-	DynamicSparsityPattern dsp(locally_relevant_dofs);      // it mostly represents a SparsityPattern object that is kept compressed at all times, memory reason. We initialize a square pattern of size n_dof
-	DoFTools::make_sparsity_pattern(dof_handler, dsp, constraints_poisson, true);    // Compute which entries of a matrix built on the given dof_handler may possibly be nonzero, and create a sparsity pattern object that represents these nonzero locations.
-    
-	SparsityTools::distribute_sparsity_pattern(dsp, dof_handler.locally_owned_dofs(), mpi_communicator, locally_relevant_dofs);
-
-	 // INITIALIZATION OF SYSTEM MATRICES AND RHS											 
-	system_matrix_poisson.reinit(local_owned_dofs, local_owned_dofs, dsp, mpi_communicator); // Reinitialize the sparse matrix with the given sparsity pattern. The latter tells the matrix how many nonzero elements there need to be reserved.
-    laplace_matrix_poisson.reinit(local_owned_dofs, local_owned_dofs, dsp, mpi_communicator);// As above
-	mass_matrix_poisson.reinit(local_owned_dofs, local_owned_dofs, dsp, mpi_communicator);   // As above
-
-	//If the library is configured to use multithreading, this functions work in parallel.
-	// MatrixCreator::create_laplace_matrix(mapping, dof_handler, QTrapezoid<dim>(), laplace_matrix_poisson); // Assemble the Laplace matrix with trapezoidal rule for numerical quadrature
-	// MatrixCreator::create_mass_matrix(mapping, dof_handler, QTrapezoid<dim>(), mass_matrix_poisson);       // Assemble the mass matrix with trapezoidal rule for numerical quadrature
-	assemble_laplace_matrix();
-	assemble_mass_matrix();
-
-	poisson_rhs.reinit(local_owned_dofs, mpi_communicator); // initialize the rhs vector
-}
-
-//-------------------------------------------------------------------------------------------------------------------------------------------------------
-
-//This methode set ups the drift diffusion problem; in particular we give the size of all the vectors involved in the computation and
-//we initialize the sparse matrices
-template <int dim>
-void Problem<dim>::setup_drift_diffusion()
-{   
-
-	DynamicSparsityPattern dsp_ion(locally_relevant_dofs);            //This class implements an array of compressed sparsity patterns (one for velocity and one for pressure in our case) that can be used to initialize objects of type BlockSparsityPattern.
-    DoFTools::make_sparsity_pattern(dof_handler, dsp_ion, constraints_ion);     //Compute which entries of a matrix built on the given dof_handler may possibly be nonzero, and create a sparsity pattern (assigning it to dsp) object that represents these nonzero locations.
-    SparsityTools::distribute_sparsity_pattern(dsp_ion, dof_handler.locally_owned_dofs(), mpi_communicator, locally_relevant_dofs);
- 
-	ion_density.reinit(local_owned_dofs, locally_relevant_dofs, mpi_communicator);           //Resize the dimension of the vector ion_density to the number of the dof (unsigned int)
-    old_ion_density.reinit(local_owned_dofs, locally_relevant_dofs, mpi_communicator);       //Resize the dimension of the vector old_ion_density to the number of the dof (unsigned int)
-	ion_rhs.reinit(local_owned_dofs, mpi_communicator);             //Resize the dimension of ion_rhs
-
-	constraints.clear();   //clear all the entries of constraints
-	DoFTools::make_hanging_node_constraints(dof_handler, constraints); // Compute the constraints resulting from the presence of hanging nodes. We put the result in constraints
-	constraints.close();   //close the object
-
-	DynamicSparsityPattern dsp_electron(locally_relevant_dofs); // it mostly represents a SparsityPattern object that is kept compressed at all times, memory reason. We initialize a square pattern of size n_dof
-	DoFTools::make_sparsity_pattern(dof_handler, dsp_electron, constraints_electron); // Compute which entries of a matrix built on dof_handler may possibly be nonzero, and create a sparsity pattern object that represents these nonzero locations, we put it in dsp
-	SparsityTools::distribute_sparsity_pattern(dsp_electron, dof_handler.locally_owned_dofs(), mpi_communicator, locally_relevant_dofs);
- 
-	electron_density.reinit(local_owned_dofs, locally_relevant_dofs, mpi_communicator);      //Resize the dimension of the vector electron_density to the number of the dof (unsigned int)
-	old_electron_density.reinit(local_owned_dofs, locally_relevant_dofs, mpi_communicator);  //Resize the dimension of the vector old_electron_density to the number of the dof (unsigned int)
-	electron_rhs.reinit(local_owned_dofs, mpi_communicator);        //Resize the dimension of electron_rhs
-
-	ion_system_matrix.reinit(local_owned_dofs, local_owned_dofs, dsp_ion, mpi_communicator);               //Reinitialize sparse matrix ion_system_matrix with the given sparsity pattern. The latter tells the matrix how many nonzero elements there need to be reserved.
-	drift_diffusion_matrix.reinit(local_owned_dofs, local_owned_dofs, dsp_ion, mpi_communicator);          //Same 
-	
-	electron_system_matrix.reinit(local_owned_dofs, local_owned_dofs, dsp_electron, mpi_communicator);          //Same 
-	electron_drift_diffusion_matrix.reinit(local_owned_dofs, local_owned_dofs, dsp_electron, mpi_communicator); //Same
-}
-
-
 //------------------------------------------------------------------------------------------------------------------------------------------------------------
-// This method is called in the newton_iteration_poisson method (NON CAPISCO MOLTO A CHE PUNTO DELL 'ALGO SIAMO)
-// It defines one iteration of the newton algorithm (?)
 template <int dim>
 void Problem<dim>::assemble_nonlinear_poisson()
 {
@@ -257,7 +244,7 @@ void Problem<dim>::assemble_nonlinear_poisson()
   // ASSEMBLE MATRICES
   system_matrix_poisson = 0; //sets all elements of the matrix to zero, but keep the sparsity pattern previously used.
   PETScWrappers::MPI::SparseMatrix ion_mass_matrix; // We initialized the new ion_mass_matrix with our sparsity pattern
-  ion_mass_matrix.reinit(local_owned_dofs, local_owned_dofs, dsp_poisson, mpi_communicator);
+  ion_mass_matrix.reinit(locally_owned_dofs, locally_owned_dofs, dsp_poisson, mpi_communicator);
   ion_mass_matrix = 0; // and then set all the elments to zero
 
   // compute the ion mass matrix
@@ -274,8 +261,8 @@ void Problem<dim>::assemble_nonlinear_poisson()
 
   // ASSEMBLE RHS
   poisson_rhs = 0; // set all the values to zero
-  PETScWrappers::MPI::Vector tmp(local_owned_dofs, mpi_communicator); //temporary vector of dimension n_dof
-  PETScWrappers::MPI::Vector doping_and_ions(local_owned_dofs, mpi_communicator); // create a new vector of dimension n_dof
+  PETScWrappers::MPI::Vector tmp(locally_owned_dofs, mpi_communicator); //temporary vector of dimension n_dof
+  PETScWrappers::MPI::Vector doping_and_ions(locally_owned_dofs, mpi_communicator); // create a new vector of dimension n_dof
   VectorTools::interpolate(mapping,dof_handler, DopingValues<dim>(), doping_and_ions); // We interpolate the previusly created vector with the initial values of Doping provided by DopingValues
   
   doping_and_ions -= old_electron_density;
@@ -305,25 +292,7 @@ void Problem<dim>::solve_poisson()
 {	
   SolverControl sc_p;     // come mai non passiamo nulla a sc_p tipo: " SolverControl solver_control(dof_handler.n_dofs(), 1e-12); "
   PETScWrappers::SparseDirectMUMPS solverMUMPS(sc_p);     // choice of the solver, MUMPS in this case
-
-  std::cout << "poisson_newton_update prima del solve " << poisson_newton_update.linfty_norm() << std::endl;
-
-  std::cout << "poisson_newton_update prima del solve " << poisson_newton_update.linfty_norm() << std::endl;
-  std::cout << "system_matrix_poisson prima del solve " << system_matrix_poisson.linfty_norm() << std::endl;
-  std::cout << "poisson_rhs prima del solve " << poisson_rhs.linfty_norm() << std::endl;
-
   solverMUMPS.solve(system_matrix_poisson, poisson_newton_update, poisson_rhs);
-
-  std::cout << "poisson_newton_update dopo il solve " << poisson_newton_update.linfty_norm() << std::endl;
-
-  //SparseDirectUMFPACK A_direct;
-  //A_direct.initialize(system_matrix_poisson);         //initialize the matrix of the Poisson system
-  //A_direct.vmult(poisson_newton_update, poisson_rhs); //this function solve system Ax = b -> x = inv(A)b using the EXACT inverse of matrix system_matrix_poisson. store the result in poisson_newton_update
-
-  zero_constraints_poisson.distribute(poisson_newton_update); //Set all constrained degrees of freedom to values so that the constraints are satisfied, basically we impose the zero constarins in poisson_newton_update vector
-
-  std::cout << "poisson_newton_update dopo il distribute zero_constraints " << poisson_newton_update.linfty_norm() << std::endl;
-
 }
 
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -351,12 +320,14 @@ void Problem<dim>::newton_iteration_poisson(const double tolerance, const unsign
 			const double alpha = 1.;
 			cout << "Norm before clamping is " << poisson_newton_update.linfty_norm() << endl;   // compute and print the L inf norm of the solution of the newton iteration
 
-			PETScWrappers::MPI::Vector tmp1;
+			PETScWrappers::MPI::Vector tmp1;    //Aggiunti per gestire il fatto che i miei due vettori soluzione siano ghosted
 			PETScWrappers::MPI::Vector tmp2;
-			tmp1.reinit(local_owned_dofs, mpi_communicator);   //Aggiunta per gestire il fatto che i miei due vettori soluzione siano ghosted
+			tmp1.reinit(locally_owned_dofs, mpi_communicator); 
             tmp1 = old_electron_density;
-			tmp2.reinit(local_owned_dofs, mpi_communicator);   
+			tmp2.reinit(locally_owned_dofs, mpi_communicator);   
             tmp2 = old_ion_density;
+
+			cout << "modifica di old_electron_density e old_ion_density:" << endl; 
 
 			for (unsigned int i = 0; i < poisson_newton_update.size(); i++) {
 
@@ -370,30 +341,29 @@ void Problem<dim>::newton_iteration_poisson(const double tolerance, const unsign
 					result = poisson_newton_update(i);
 				}
 				poisson_newton_update(i) = result;
-				//poisson_newton_update(i) = std::max(std::min(temp(i),V_E),-V_E);    //DA RISCRIVERE CON IF ELSE CONDITION
 				
-				//cout << "setting di poisson_newton_update superato" << std::endl;
 				tmp1(i) *= std::exp(alpha*result/V_E);
 				tmp2(i) *= std::exp(alpha*result/V_E);
-                
-				// old_electron_density(i) *= std::exp(alpha*poisson_newton_update(i)/V_E);
-				// old_ion_density(i) *= std::exp(-alpha*poisson_newton_update(i)/V_E);
 			}
-			poisson_newton_update.compress(VectorOperation::insert); 
+
 			tmp1.compress(VectorOperation::insert); 
 			tmp2.compress(VectorOperation::insert); 
+			poisson_newton_update.compress(VectorOperation::insert); 
+
+			constraints_poisson.distribute(tmp1);      //apply constrains on old_ion_density
+			constraints_poisson.distribute(tmp2); //apply constrains on old_electron_density
+
 			old_electron_density = tmp1;
 			old_ion_density = tmp2;
 
-			constraints.distribute(old_ion_density);      //apply constrains on old_ion_density
-			constraints.distribute(old_electron_density); //apply constrains on old_electron_density
-
 			PETScWrappers::MPI::Vector tmp3;
-			tmp3.reinit(local_owned_dofs, mpi_communicator);
+			tmp3.reinit(locally_owned_dofs, mpi_communicator);
 			tmp3 = potential;
 			tmp3.add(alpha, poisson_newton_update);
 
 			tmp3.compress(VectorOperation::add); 
+
+			cout << "tmp1 tmp2 tmp3 superati" << endl; 
 			
 			// potential.add(alpha, poisson_newton_update);  //potential = potential + alpha * poisson_newton_update
 
@@ -521,57 +491,6 @@ void Problem<dim>::assemble_drift_diffusion_matrix() //del singolo processore
 	electron_rhs.compress(VectorOperation::add);
 	std::cout << "ion_rhs norm after compress " << ion_rhs.linfty_norm() << std::endl;
 }
-
-//------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
-//this method apply the chosen Dirichlet boundary values for the emitter and the collector in the drift diffusion Matrix/vector
-// template <int dim>
-// void Problem<dim>::apply_drift_diffusion_boundary_conditions()
-template <int dim>
-void Problem<dim>::make_drift_diffusion_constraints()
-{       
-	//create maps to store the boundary values on the collector and the emitter
-	std::map<types::global_dof_index, double> collector_boundary_values;
-	std::map<types::global_dof_index, double> emitter_boundary_values;
-
-	// VectorTools::interpolate_boundary_values(mapping, dof_handler,1, Functions::ConstantFunction<dim>(N1), emitter_boundary_values); //This function creates a map of degrees of freedom subject to Dirichlet boundary conditions and the corresponding values to be assigned to them, by interpolation around the boundary (tag 1). 
-	// cout << "interpolate_boundary_values() superato" << std::endl;
-	// for (const auto& pair : emitter_boundary_values) {
-	// std::cout << "Chiave: " << pair.first << ", Valore: " << pair.second << std::endl;
-	// }
-	// MatrixTools::apply_boundary_values(emitter_boundary_values, electron_system_matrix, electron_density, electron_rhs); //Apply Dirichlet boundary conditions to the system matrix and vectors  //It works also on PETScWrappers::MPI::
-	// cout << "apply_boundary_values() superato" << std::endl;
-
-	// VectorTools::interpolate_boundary_values(mapping, dof_handler,2, Functions::ConstantFunction<dim>(N2), collector_boundary_values);
-	// MatrixTools::apply_boundary_values(collector_boundary_values, electron_system_matrix, electron_density, electron_rhs);
-
-	// VectorTools::interpolate_boundary_values(mapping, dof_handler,1, Functions::ConstantFunction<dim>(P1), emitter_boundary_values);
-	// MatrixTools::apply_boundary_values(emitter_boundary_values, ion_system_matrix, ion_density, ion_rhs);
-
-	// VectorTools::interpolate_boundary_values(mapping, dof_handler,2, Functions::ConstantFunction<dim>(P2), collector_boundary_values);
-	//MatrixTools::apply_boundary_values(collector_boundary_values, ion_system_matrix, ion_density, ion_rhs);
-
-	constraints_electron.clear();
-	constraints_ion.clear();    
-
-	DoFTools::make_hanging_node_constraints(dof_handler, constraints_electron); 
-	DoFTools::make_hanging_node_constraints(dof_handler, constraints_ion); 
-	
-	std::cout << "Value of P1: " << P1 << std::endl;
-	std::cout << "Value of P2: " << P2 << std::endl;
-
-	VectorTools::interpolate_boundary_values(mapping, dof_handler,1, Functions::ConstantFunction<dim>(N1), constraints_electron); 
-
-	VectorTools::interpolate_boundary_values(mapping, dof_handler,2, Functions::ConstantFunction<dim>(N2), constraints_electron);
-
-	VectorTools::interpolate_boundary_values(mapping, dof_handler,1, Functions::ConstantFunction<dim>(P1), constraints_ion);
-
-	VectorTools::interpolate_boundary_values(mapping, dof_handler,2, Functions::ConstantFunction<dim>(P2), constraints_ion);
-	
-	constraints_electron.close();
-	constraints_ion.close(); 	
-}
-
 //----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 //This method solve the drift diffusion system with a UMFPACK solver. UMFPACK is a set of routines for solving non-symmetric sparse linear systems.
@@ -581,39 +500,21 @@ void Problem<dim>::solve_drift_diffusion()
 {
   SolverControl sc_dd;
   PETScWrappers::SparseDirectMUMPS solverMUMPS_ion(sc_dd);
-
-  PETScWrappers::MPI::Vector tmp_ion;
-  tmp_ion.reinit(local_owned_dofs, mpi_communicator);
-  //tmp_ion = ion_density;
-  cout << "tmp_ion prima solverMUMPS " << tmp_ion.linfty_norm() << endl;
-  cout << "ion_system_matrix norm " << ion_system_matrix.linfty_norm() << endl;
-  cout << "ion_rhs norm " << ion_rhs.linfty_norm() << endl;
-  cout << "drift_diffusion_matrix norm " << drift_diffusion_matrix.linfty_norm() << endl;
-  cout << "electron_drift_diffusion_matrix norm " << electron_drift_diffusion_matrix.linfty_norm() << endl;
-  cout << "electron_rhs norm " << electron_rhs.linfty_norm() << endl;
- 
-  solverMUMPS_ion.solve(ion_system_matrix, tmp_ion, ion_rhs);
-  //SparseDirectUMFPACK P_direct;
-  //P_direct.initialize(ion_system_matrix);     //Initialize memory and call SparseDirectUMFPACK::factorize
-  //P_direct.vmult(ion_density, ion_rhs);       //solve Ax = b with exact inv(A). store in ion_density
-  //constraints.distribute(ion_density);        //apply constrains on ion_density vector
-  cout << "tmp_ion dopo solverMUMPS " << tmp_ion.linfty_norm() << endl;
-  //constraints_ion.distribute(tmp_ion); 
-  cout << "tmp_ion dopo constraints_ion " << tmp_ion.linfty_norm() << endl;
-  ion_density = tmp_ion;
-
   PETScWrappers::SparseDirectMUMPS solverMUMPS_electron(sc_dd);
+  
   PETScWrappers::MPI::Vector tmp_electron;
-  tmp_electron.reinit(local_owned_dofs, mpi_communicator);
-  //tmp_electron = electron_density;
+  tmp_electron.reinit(locally_owned_dofs, mpi_communicator);
+
   solverMUMPS_electron.solve(electron_system_matrix, tmp_electron, electron_rhs);
-  //SparseDirectUMFPACK N_direct;
-  //N_direct.initialize(electron_system_matrix);
-  //N_direct.vmult(electron_density, electron_rhs);
-  //constraints.distribute(electron_density);
   constraints_electron.distribute(tmp_electron);
   electron_density = tmp_electron;
 
+  PETScWrappers::MPI::Vector tmp_ion;
+  tmp_ion.reinit(locally_owned_dofs, mpi_communicator);
+  
+  solverMUMPS_ion.solve(ion_system_matrix, tmp_ion, ion_rhs);
+  constraints_ion.distribute(tmp_ion);
+  ion_density = tmp_ion;
 }
 
 //---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -692,24 +593,27 @@ void Problem<dim>::run()
 	pcout << "Running with PETSc on "
         << Utilities::MPI::n_mpi_processes(mpi_communicator)         //Return the number of MPI processes there exist in the given communicator object
         << " MPI rank(s)..." << std::endl;
-	//CREATION OF THE MESH
-	//create_mesh();
-    
-	// SET UP THE MATRICES AND DOFHANDLER
-	setup_poisson();
-	cout << "setup_poisson superato" << endl; 
+	
+	setup_dofs();
+	std::cout << "setup_dofs superato " << std::endl;
 
-	make_drift_diffusion_constraints();
-	cout << "make_drift_diffusion_constraints superato" << endl; 
-	setup_drift_diffusion();
+    make_constraints_poisson();
+	std::cout << "make_constraints_poissonsuperato " << std::endl;
+    make_constraints_drift_diffusion();
+	std::cout << "make_constraints_drift_diffusion superato " << std::endl;
+
+    initialize_system_poisson();
+	std::cout << "initialize_system_poisson superato " << std::endl;
+    initialize_system_drift_diffusion();
+	std::cout << "initialize_system_poisson superato " << std::endl;
     
 	//INITIALIZE THE VECTORS
 	PETScWrappers::MPI::Vector tmp1;
 	PETScWrappers::MPI::Vector tmp2;
 	PETScWrappers::MPI::Vector tmp3;
-	tmp1.reinit(local_owned_dofs, mpi_communicator);
-	tmp2.reinit(local_owned_dofs, mpi_communicator);
-	tmp3.reinit(local_owned_dofs, mpi_communicator);
+	tmp1.reinit(locally_owned_dofs, mpi_communicator);
+	tmp2.reinit(locally_owned_dofs, mpi_communicator);
+	tmp3.reinit(locally_owned_dofs, mpi_communicator);
 	tmp1 = potential;
 	tmp2 = old_ion_density;
 	tmp3 = old_electron_density;
@@ -723,8 +627,6 @@ void Problem<dim>::run()
 	// first step in the output
     output_results(0);
 
-    PETScWrappers::MPI::Vector tmp;    //Forse local_size ??
-
     const double tol = 1.e-9*V_E;
     const unsigned int max_it = 50; //max iterations
     
@@ -735,7 +637,8 @@ void Problem<dim>::run()
 	// initial error in order to enter the loop
     double ion_err = ion_tol + 1.;
     double electron_err = electron_tol + 1.;
-    
+
+    std::cout << "entrati nel while " << std::endl;
 	// SOLVE THE SYSTEM
     while ( (ion_err > ion_tol || electron_err > electron_tol) && step_number < 10)  //time <= max_time - 0.1*timestep
       {
@@ -753,26 +656,6 @@ void Problem<dim>::run()
 		ion_system_matrix.copy_from(drift_diffusion_matrix);
 		electron_system_matrix.copy_from(electron_drift_diffusion_matrix);
         
-		// COMMENTO MENESSINI
-		// BE integration
-        /*mass_matrix.vmult(ion_rhs, old_ion_density);
-        mass_matrix.vmult(electron_rhs, old_electron_density);
-        assemble_drift_diffusion_matrix();
-
-        RightHandSide<dim> rhs_function;
-        rhs_function.set_time(time);
-        VectorTools::create_right_hand_side(dof_handler, QGauss<dim>(fe.degree + 1), rhs_function, tmp);
-        forcing_terms = tmp;
-        forcing_terms *= timestep;
-
-        ion_rhs += forcing_terms;
-        ion_system_matrix.copy_from(mass_matrix);
-        ion_system_matrix.add(timestep, drift_diffusion_matrix);
-
-        electron_rhs += forcing_terms;
-        electron_system_matrix.copy_from(mass_matrix);
-        electron_system_matrix.add(timestep, negative_drift_diffusion_matrix);*/
-
         // apply_drift_diffusion_boundary_conditions();
         solve_drift_diffusion();
 		std::cout << "Usciti da solve_drift_diffusion: " << std::endl;
@@ -785,7 +668,7 @@ void Problem<dim>::run()
 		std::cout << "norm of old_ion_density: " << old_ion_density.linfty_norm() << std::endl;
 		
 		PETScWrappers::MPI::Vector tmp;
-		tmp.reinit(local_owned_dofs, mpi_communicator);
+		tmp.reinit(locally_owned_dofs, mpi_communicator);
         tmp = ion_density;
         tmp -= old_ion_density;
         ion_err = tmp.linfty_norm();
