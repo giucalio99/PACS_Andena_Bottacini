@@ -97,7 +97,7 @@ class Problem{
     //SparsityPattern     sparsity_pattern_poisson;  
 
     PETScWrappers::MPI::SparseMatrix ion_system_matrix;
-    PETScWrappers::MPI::SparseMatrix mass_matrix;
+    // PETScWrappers::MPI::SparseMatrix mass_matrix;
     PETScWrappers::MPI::SparseMatrix drift_diffusion_matrix;
 
     PETScWrappers::MPI::SparseMatrix electron_system_matrix;

@@ -109,6 +109,10 @@ void Problem<dim>::initialize_system_poisson()
 	
 	assemble_laplace_matrix();
 	assemble_mass_matrix();
+	cout << "laplace_matrix linf norm 1 is " << laplace_matrix_poisson.linfty_norm() << endl;
+  	cout << "mass_matrix linf norm 1 is " << mass_matrix_poisson.linfty_norm() << endl;
+  	cout << "laplace_matrix frob norm 1 is " << laplace_matrix_poisson.frobenius_norm() << endl;
+  	cout << "mass_matrix frob norm 1 is " << mass_matrix_poisson.frobenius_norm() << endl;
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -136,11 +140,11 @@ void Problem<dim>::initialize_system_drift_diffusion()
 	
 
 	electron_density.reinit(locally_owned_dofs, locally_relevant_dofs, mpi_communicator);      //Resize the dimension of the vector electron_density to the number of the dof (unsigned int)
-	old_electron_density.reinit(locally_owned_dofs, locally_relevant_dofs, mpi_communicator);  //Resize the dimension of the vector old_electron_density to the number of the dof (unsigned int)
+	old_electron_density.reinit(locally_owned_dofs, mpi_communicator);  //Resize the dimension of the vector old_electron_density to the number of the dof (unsigned int)
 	electron_rhs.reinit(locally_owned_dofs, mpi_communicator); 
 
 	ion_density.reinit(locally_owned_dofs, locally_relevant_dofs, mpi_communicator);           //Resize the dimension of the vector ion_density to the number of the dof (unsigned int)
-    old_ion_density.reinit(locally_owned_dofs, locally_relevant_dofs, mpi_communicator);       //Resize the dimension of the vector old_ion_density to the number of the dof (unsigned int)
+    old_ion_density.reinit(locally_owned_dofs, mpi_communicator);       //Resize the dimension of the vector old_ion_density to the number of the dof (unsigned int)
 	ion_rhs.reinit(locally_owned_dofs, mpi_communicator); 
 
 	potential.reinit(locally_owned_dofs, locally_relevant_dofs, mpi_communicator); 
@@ -150,7 +154,7 @@ void Problem<dim>::initialize_system_drift_diffusion()
 template <int dim>
 void Problem<dim>::assemble_laplace_matrix()
 {
-	const QGauss<dim> quadrature_formula(fe.degree + 1);
+	const QTrapezoid<dim> quadrature_formula;
 
 	laplace_matrix_poisson = 0;
 
@@ -193,7 +197,7 @@ void Problem<dim>::assemble_laplace_matrix()
 template <int dim>
 void Problem<dim>::assemble_mass_matrix()
 {
-	const QGauss<dim> quadrature_formula(fe.degree + 1);
+	const QTrapezoid<dim> quadrature_formula;
 
 	mass_matrix_poisson = 0;
 
@@ -247,17 +251,20 @@ void Problem<dim>::assemble_nonlinear_poisson()
   ion_mass_matrix.reinit(locally_owned_dofs, locally_owned_dofs, dsp_poisson, mpi_communicator);
   ion_mass_matrix = 0; // and then set all the elments to zero
 
+  
   // compute the ion mass matrix
   for (unsigned int i = 0; i < old_ion_density.size(); ++i){
 	  ion_mass_matrix.set(i,i, mass_matrix_poisson(i,i) * (old_ion_density(i) + old_electron_density(i)));
   }
   ion_mass_matrix.compress(VectorOperation::insert); 
+   cout << "Matrix linf norm 1 is " << ion_mass_matrix.linfty_norm() << endl;
+  cout << "Matrix frob norm 1 is " << ion_mass_matrix.frobenius_norm() << endl;
 
   system_matrix_poisson.add(q0 / V_E, ion_mass_matrix);  // A += factor * B with the passed values
-  cout << "Ion matrix norm is " << system_matrix_poisson.linfty_norm() << std::endl;  // compute and print the infinit norm of the matrix
+  cout << "system_matrix_poisson norm is " << system_matrix_poisson.linfty_norm() << std::endl;  // compute and print the infinit norm of the matrix
 
   system_matrix_poisson.add(eps_r * eps_0, laplace_matrix_poisson); // same as above
-  cout << "Matrix norm is " << system_matrix_poisson.linfty_norm() << std::endl;
+  cout << "system_matrix_poisson norm is " << system_matrix_poisson.linfty_norm() << std::endl;
 
   // ASSEMBLE RHS
   poisson_rhs = 0; // set all the values to zero
@@ -327,8 +334,6 @@ void Problem<dim>::newton_iteration_poisson(const double tolerance, const unsign
 			tmp2.reinit(locally_owned_dofs, mpi_communicator);   
             tmp2 = old_ion_density;
 
-			cout << "modifica di old_electron_density e old_ion_density:" << endl; 
-
 			for (unsigned int i = 0; i < poisson_newton_update.size(); i++) {
 
 				//const PETScWrappers::MPI::Vector temp(poisson_newton_update);    //Ho bisogno di un oggetto const per accedere al metodo () const. !!! Non efficente
@@ -362,9 +367,6 @@ void Problem<dim>::newton_iteration_poisson(const double tolerance, const unsign
 			tmp3.add(alpha, poisson_newton_update);
 
 			tmp3.compress(VectorOperation::add); 
-
-			cout << "tmp1 tmp2 tmp3 superati" << endl; 
-			
 			// potential.add(alpha, poisson_newton_update);  //potential = potential + alpha * poisson_newton_update
 
 			constraints_poisson.distribute(tmp3);    //apply cointraints_poisson to potential vector (vector can't be ghosted)
@@ -598,7 +600,7 @@ void Problem<dim>::run()
 	std::cout << "setup_dofs superato " << std::endl;
 
     make_constraints_poisson();
-	std::cout << "make_constraints_poissonsuperato " << std::endl;
+	std::cout << "make_constraints_poisson superato " << std::endl;
     make_constraints_drift_diffusion();
 	std::cout << "make_constraints_drift_diffusion superato " << std::endl;
 
@@ -609,20 +611,19 @@ void Problem<dim>::run()
     
 	//INITIALIZE THE VECTORS
 	PETScWrappers::MPI::Vector tmp1;
-	PETScWrappers::MPI::Vector tmp2;
-	PETScWrappers::MPI::Vector tmp3;
 	tmp1.reinit(locally_owned_dofs, mpi_communicator);
-	tmp2.reinit(locally_owned_dofs, mpi_communicator);
-	tmp3.reinit(locally_owned_dofs, mpi_communicator);
 	tmp1 = potential;
-	tmp2 = old_ion_density;
-	tmp3 = old_electron_density;
 	VectorTools::interpolate(mapping, dof_handler, PotentialValues<dim>(), tmp1);   //interpolate vuole un vettore non ghosted
-	VectorTools::interpolate(mapping, dof_handler, IonInitialValues<dim>(), tmp2);
-	VectorTools::interpolate(mapping, dof_handler, ElectronInitialValues<dim>(), tmp3);
+	VectorTools::interpolate(mapping, dof_handler, IonInitialValues<dim>(), old_ion_density);
+	VectorTools::interpolate(mapping, dof_handler, ElectronInitialValues<dim>(), old_electron_density);
 	potential = tmp1;
-	old_ion_density = tmp2;
-	old_electron_density = tmp3;
+
+	cout << "old_ion_density linf norm 1 is " << old_ion_density.linfty_norm() << endl;
+  	cout << "old_electron_density linf norm 1 is " << old_electron_density.linfty_norm() << endl;
+  	cout << "old_ion_density l2 norm 1 is " << old_ion_density.l2_norm() << endl;
+  	cout << "old_electron_density l2 norm 1 is " << old_electron_density.l2_norm() << endl;
+	cout << "potential linf norm 1 is " << potential.linfty_norm() << endl;
+  	cout << "potential l2 norm 1 is " << potential.l2_norm() << endl;
 
 	// first step in the output
     output_results(0);

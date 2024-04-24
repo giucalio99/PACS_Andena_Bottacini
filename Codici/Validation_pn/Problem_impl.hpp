@@ -104,11 +104,15 @@ void Problem<dim>::setup_poisson()
 	MatrixCreator::create_laplace_matrix(mapping, dof_handler, QTrapezoid<dim>(), laplace_matrix_poisson); // Assemble the Laplace matrix with trapezoidal rule for numerical quadrature
 	MatrixCreator::create_mass_matrix(mapping, dof_handler, QTrapezoid<dim>(), mass_matrix_poisson);       // Assemble the mass matrix with trapezoidal rule for numerical quadrature
 
+	cout << "laplace_matrix linf norm 1 is " << laplace_matrix_poisson.linfty_norm() << endl;
+  	cout << "mass_matrix linf norm 1 is " << mass_matrix_poisson.linfty_norm() << endl;
+  	cout << "laplace_matrix frob norm 1 is " << laplace_matrix_poisson.frobenius_norm() << endl;
+  	cout << "mass_matrix frob norm 1 is " << mass_matrix_poisson.frobenius_norm() << endl;
+
 	poisson_rhs.reinit(dof_handler.n_dofs()); // initialize the rhs vector
 }
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
-
 // This method is called in the newton_iteration_poisson method (NON CAPISCO MOLTO A CHE PUNTO DELL 'ALGO SIAMO)
 // It defines one iteration of the newton algorithm (?)
 template <int dim>
@@ -124,12 +128,14 @@ void Problem<dim>::assemble_nonlinear_poisson()
   for (unsigned int i = 0; i < old_ion_density.size(); ++i){
 	  ion_mass_matrix(i,i) = mass_matrix_poisson(i,i) * (old_ion_density(i) + old_electron_density(i));
   }
+  cout << "Matrix linf norm 1 is " << ion_mass_matrix.linfty_norm() << endl;
+  cout << "Matrix frob norm 1 is " << ion_mass_matrix.frobenius_norm() << endl;
 
   system_matrix_poisson.add(q0 / V_E, ion_mass_matrix);  // A += factor * B with the passed values
-  cout << "Ion matrix norm is " << system_matrix_poisson.linfty_norm() << endl;  // compute and print the infinit norm of the matrix
+  cout << "Matrix norm 2 is " << system_matrix_poisson.linfty_norm() << endl;  // compute and print the infinit norm of the matrix
 
   system_matrix_poisson.add(eps_r * eps_0, laplace_matrix_poisson); // same as above
-  cout << "Matrix norm is " << system_matrix_poisson.linfty_norm() << endl;
+  cout << "Matrix norm 3 is " << system_matrix_poisson.linfty_norm() << endl;
 
   // ASSEMBLE RHS
   poisson_rhs = 0; // set all the values to zero
@@ -450,6 +456,12 @@ void Problem<dim>::run()
 	VectorTools::interpolate(mapping, dof_handler, IonInitialValues<dim>(), old_ion_density);
 	VectorTools::interpolate(mapping, dof_handler, ElectronInitialValues<dim>(), old_electron_density);
 	
+	cout << "old_ion_density linf norm 1 is " << old_ion_density.linfty_norm() << endl;
+  	cout << "old_electron_density linf norm 1 is " << old_electron_density.linfty_norm() << endl;
+  	cout << "old_ion_density l2 norm 1 is " << old_ion_density.l2_norm() << endl;
+  	cout << "old_electron_density l2 norm 1 is " << old_electron_density.l2_norm() << endl;
+	cout << "potential linf norm 1 is " << potential.linfty_norm() << endl;
+  	cout << "potential l2 norm 1 is " << potential.l2_norm() << endl;
     
 	// first step in the output
     output_results(0);
