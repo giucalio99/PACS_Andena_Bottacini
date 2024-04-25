@@ -53,10 +53,10 @@ RM = /opt/mox/mk/toolchains/gcc-glibc/11.2.0/base/bin/cmake -E rm -f
 EQUALS = =
 
 # The top-level source directory on which CMake was run.
-CMAKE_SOURCE_DIR = /home/giacomo/Documenti/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2
+CMAKE_SOURCE_DIR = /mnt/d/IPROP_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2
 
 # The top-level build directory on which CMake was run.
-CMAKE_BINARY_DIR = /home/giacomo/Documenti/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2/build
+CMAKE_BINARY_DIR = /mnt/d/IPROP_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2/build
 
 # Utility rule file for info.
 
@@ -67,7 +67,7 @@ include CMakeFiles/info.dir/compiler_depend.make
 include CMakeFiles/info.dir/progress.make
 
 CMakeFiles/info:
-	/opt/mox/mk/toolchains/gcc-glibc/11.2.0/base/bin/cmake -P /home/giacomo/Documenti/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2/build/CMakeFiles/print_usage.cmake
+	/opt/mox/mk/toolchains/gcc-glibc/11.2.0/base/bin/cmake -P /mnt/d/IPROP_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2/build/CMakeFiles/print_usage.cmake
 
 info: CMakeFiles/info
 info: CMakeFiles/info.dir/build.make
@@ -82,6 +82,6 @@ CMakeFiles/info.dir/clean:
 .PHONY : CMakeFiles/info.dir/clean
 
 CMakeFiles/info.dir/depend:
-	cd /home/giacomo/Documenti/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2/build && $(CMAKE_COMMAND) -E cmake_depends "Unix Makefiles" /home/giacomo/Documenti/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2 /home/giacomo/Documenti/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2 /home/giacomo/Documenti/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2/build /home/giacomo/Documenti/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2/build /home/giacomo/Documenti/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2/build/CMakeFiles/info.dir/DependInfo.cmake "--color=$(COLOR)"
+	cd /mnt/d/IPROP_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2/build && $(CMAKE_COMMAND) -E cmake_depends "Unix Makefiles" /mnt/d/IPROP_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2 /mnt/d/IPROP_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2 /mnt/d/IPROP_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2/build /mnt/d/IPROP_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2/build /mnt/d/IPROP_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2/build/CMakeFiles/info.dir/DependInfo.cmake "--color=$(COLOR)"
 .PHONY : CMakeFiles/info.dir/depend
 

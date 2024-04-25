@@ -56,6 +56,7 @@ void Problem<dim>::make_constraints_poisson()
 	
 	VectorTools::interpolate_boundary_values(dof_handler, 1, Functions::ZeroFunction<dim>(), zero_constraints_poisson); // Set the values of zero_constraints_poisson on the left edge boundary of the domain to zero
 	VectorTools::interpolate_boundary_values(dof_handler, 2, Functions::ZeroFunction<dim>(), zero_constraints_poisson); // Set the values of zero_constraints_poisson on the right edge boundary of the domain to zero (homo Dirichlet)
+
 	constraints_poisson.close();
 	zero_constraints_poisson.close();
 }
@@ -103,12 +104,14 @@ void Problem<dim>::initialize_system_poisson()
 	system_matrix_poisson.reinit(locally_owned_dofs, locally_owned_dofs, dsp, mpi_communicator); // Reinitialize the sparse matrix with the given sparsity pattern. The latter tells the matrix how many nonzero elements there need to be reserved.
     laplace_matrix_poisson.reinit(locally_owned_dofs, locally_owned_dofs, dsp, mpi_communicator);// As above
 	mass_matrix_poisson.reinit(locally_owned_dofs, locally_owned_dofs, dsp, mpi_communicator);   // As above
+
 	poisson_rhs.reinit(locally_owned_dofs, mpi_communicator); // initialize the rhs vector
 
 	poisson_newton_update.reinit(locally_owned_dofs, mpi_communicator);
 	
 	assemble_laplace_matrix();
 	assemble_mass_matrix();
+
 	cout << "laplace_matrix linf norm 1 is " << laplace_matrix_poisson.linfty_norm() << endl;
   	cout << "mass_matrix linf norm 1 is " << mass_matrix_poisson.linfty_norm() << endl;
   	cout << "laplace_matrix frob norm 1 is " << laplace_matrix_poisson.frobenius_norm() << endl;
@@ -123,6 +126,7 @@ void Problem<dim>::initialize_system_drift_diffusion()
     electron_drift_diffusion_matrix.clear();
 	ion_system_matrix.clear();
 	drift_diffusion_matrix.clear();
+	
     
 	DynamicSparsityPattern dsp_electron(locally_relevant_dofs); // it mostly represents a SparsityPattern object that is kept compressed at all times, memory reason. We initialize a square pattern of size n_dof
 	DoFTools::make_sparsity_pattern(dof_handler, dsp_electron, constraints_electron); // Compute which entries of a matrix built on dof_handler may possibly be nonzero, and create a sparsity pattern object that represents these nonzero locations, we put it in dsp
@@ -147,7 +151,7 @@ void Problem<dim>::initialize_system_drift_diffusion()
     old_ion_density.reinit(locally_owned_dofs, mpi_communicator);       //Resize the dimension of the vector old_ion_density to the number of the dof (unsigned int)
 	ion_rhs.reinit(locally_owned_dofs, mpi_communicator); 
 
-	potential.reinit(locally_owned_dofs, locally_relevant_dofs, mpi_communicator); 
+	potential.reinit(locally_owned_dofs, locally_relevant_dofs, mpi_communicator);  // ??
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -187,13 +191,11 @@ void Problem<dim>::assemble_laplace_matrix()
 			}
 
 		cell->get_dof_indices(local_dof_indices);
-		constraints_poisson.distribute_local_to_global( cell_matrix,
-												local_dof_indices,
-												laplace_matrix_poisson );
+		constraints_poisson.distribute_local_to_global( cell_matrix, local_dof_indices, laplace_matrix_poisson );
 		}
 	laplace_matrix_poisson.compress(VectorOperation::add);
 }
-
+//-------------------------------------------------------------------------------------------------------------------------------------------------
 template <int dim>
 void Problem<dim>::assemble_mass_matrix()
 {
@@ -230,12 +232,14 @@ void Problem<dim>::assemble_mass_matrix()
 			}
 
 		cell->get_dof_indices(local_dof_indices);
-		constraints_poisson.distribute_local_to_global( cell_matrix,
-												local_dof_indices,
-												mass_matrix_poisson );
+		constraints_poisson.distribute_local_to_global( cell_matrix,local_dof_indices, 	mass_matrix_poisson );
 		}
 	mass_matrix_poisson.compress(VectorOperation::add);
 }
+
+
+// DA QUESTO PUNTO IN AVANTI SI ENTRA NEL CICLO WHILE, QUINDI ABBAIMO A CHE FARE CON QUANTITA' CHE SI AGGIORNANO
+
 
 //------------------------------------------------------------------------------------------------------------------------------------------------------------
 template <int dim>
@@ -256,8 +260,10 @@ void Problem<dim>::assemble_nonlinear_poisson()
   for (unsigned int i = 0; i < old_ion_density.size(); ++i){
 	  ion_mass_matrix.set(i,i, mass_matrix_poisson(i,i) * (old_ion_density(i) + old_electron_density(i)));
   }
+
   ion_mass_matrix.compress(VectorOperation::insert); 
-   cout << "Matrix linf norm 1 is " << ion_mass_matrix.linfty_norm() << endl;
+
+  cout << "Matrix linf norm 1 is " << ion_mass_matrix.linfty_norm() << endl;
   cout << "Matrix frob norm 1 is " << ion_mass_matrix.frobenius_norm() << endl;
 
   system_matrix_poisson.add(q0 / V_E, ion_mass_matrix);  // A += factor * B with the passed values
@@ -278,7 +284,7 @@ void Problem<dim>::assemble_nonlinear_poisson()
   mass_matrix_poisson.vmult(tmp,doping_and_ions);   //tmp = mass_matrix_poisson * doping_and_ions
   poisson_rhs.add(q0, tmp);//0, tmp);//
   laplace_matrix_poisson.vmult(tmp,potential);     //tmp = laplace_matrix_poisson * potential  //No problem, potential treated as const
-  poisson_rhs.add(- eps_r * eps_0, tmp);//- eps_r * eps_0, tmp);//
+  poisson_rhs.add(- eps_r * eps_0, tmp);
 
   poisson_rhs.compress(VectorOperation::insert); 
   laplace_matrix_poisson.compress(VectorOperation::insert); 
@@ -290,6 +296,10 @@ void Problem<dim>::assemble_nonlinear_poisson()
   // zero_constraints_poisson.condense(system_matrix_poisson, poisson_rhs);
 }
 
+
+// IDEA: MENESSINI DICEVA CHE BISOGNAVA USARE ZERO_CONSTRAIN_POISSON IN NEWTON, NOI NON LO FACCIMAO
+
+
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 // in this method we solve a linear system and we impose boundary conditions on the result vector. In particular here
@@ -297,14 +307,28 @@ void Problem<dim>::assemble_nonlinear_poisson()
 template <int dim>
 void Problem<dim>::solve_poisson()
 {	
-  SolverControl sc_p;     // come mai non passiamo nulla a sc_p tipo: " SolverControl solver_control(dof_handler.n_dofs(), 1e-12); "
+  
+  SolverControl sc_p;     
   PETScWrappers::SparseDirectMUMPS solverMUMPS(sc_p);     // choice of the solver, MUMPS in this case
+
+  PETScWrappers::MPI::Vector tmp_poisson;
+  tmp_poisson.reinit(locally_owned_dofs, mpi_communicator);
+
+  solverMUMPS.solve(system_matrix_poisson, tmp_poisson, poisson_rhs);
+  zero_constraints_poisson.distribute(tmp_poisson);
+  poisson_newton_update = tmp_poisson;
+  
+  
+  
+  // cambi fatti : aggiunto zero constrains e passaggio intermendio con tmp vector
+  /*VECCHIO
+  SolverControl sc_p;     
+  PETScWrappers::SparseDirectMUMPS solverMUMPS(sc_p);     
   solverMUMPS.solve(system_matrix_poisson, poisson_newton_update, poisson_rhs);
+  */
 }
 
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-// in teoria qua non si dovrebbe parallelizzare nulla siccome ogni processore farà girare questa funzione sul proprio
-// sub set dei vettori e dof (immagino)
 
 // given the tolerance and the max number of iterations this method solves the Poisson newton system
 template <int dim>
@@ -337,7 +361,7 @@ void Problem<dim>::newton_iteration_poisson(const double tolerance, const unsign
 			for (unsigned int i = 0; i < poisson_newton_update.size(); i++) {
 
 				//const PETScWrappers::MPI::Vector temp(poisson_newton_update);    //Ho bisogno di un oggetto const per accedere al metodo () const. !!! Non efficente
-				double result;
+				double result; 
 				if (poisson_newton_update(i) < -V_E) {
 					result = -V_E;
 				} else if (poisson_newton_update(i) > V_E) {
@@ -345,10 +369,13 @@ void Problem<dim>::newton_iteration_poisson(const double tolerance, const unsign
 				} else {
 					result = poisson_newton_update(i);
 				}
+
+					
+				
 				poisson_newton_update(i) = result;
 				
-				tmp1(i) *= std::exp(alpha*result/V_E);
-				tmp2(i) *= std::exp(alpha*result/V_E);
+				tmp1(i) *= std::exp(alpha*poisson_newton_update(i)/V_E);  //old electron density
+				tmp2(i) *= std::exp(-alpha*poisson_newton_update(i)/V_E);  //old ion density
 			}
 
 			tmp1.compress(VectorOperation::insert); 
@@ -489,8 +516,12 @@ void Problem<dim>::assemble_drift_diffusion_matrix() //del singolo processore
 	//std::cout << "ion_rhs norm after distribute_local_to_global: " << ion_rhs.linfty_norm() << std::endl;
 	drift_diffusion_matrix.compress(VectorOperation::add);       //Added compress like in other assemble functions
 	ion_rhs.compress(VectorOperation::add);
+
 	electron_drift_diffusion_matrix.compress(VectorOperation::add);
 	electron_rhs.compress(VectorOperation::add);
+
+
+
 	std::cout << "ion_rhs norm after compress " << ion_rhs.linfty_norm() << std::endl;
 }
 //----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -503,6 +534,7 @@ void Problem<dim>::solve_drift_diffusion()
   SolverControl sc_dd;
   PETScWrappers::SparseDirectMUMPS solverMUMPS_ion(sc_dd);
   PETScWrappers::SparseDirectMUMPS solverMUMPS_electron(sc_dd);
+
   
   PETScWrappers::MPI::Vector tmp_electron;
   tmp_electron.reinit(locally_owned_dofs, mpi_communicator);
@@ -654,6 +686,7 @@ void Problem<dim>::run()
 		// Drift Diffusion Step
         assemble_drift_diffusion_matrix();
 		std::cout << "Usciti da assemble_drift_diffusion_matrix: " << std::endl;
+		
 		ion_system_matrix.copy_from(drift_diffusion_matrix);
 		electron_system_matrix.copy_from(electron_drift_diffusion_matrix);
         

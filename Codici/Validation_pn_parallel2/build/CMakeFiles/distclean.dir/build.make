@@ -53,10 +53,10 @@ RM = /opt/mox/mk/toolchains/gcc-glibc/11.2.0/base/bin/cmake -E rm -f
 EQUALS = =
 
 # The top-level source directory on which CMake was run.
-CMAKE_SOURCE_DIR = /home/giacomo/Documenti/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2
+CMAKE_SOURCE_DIR = /mnt/d/IPROP_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2
 
 # The top-level build directory on which CMake was run.
-CMAKE_BINARY_DIR = /home/giacomo/Documenti/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2/build
+CMAKE_BINARY_DIR = /mnt/d/IPROP_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2/build
 
 # Utility rule file for distclean.
 
@@ -67,9 +67,9 @@ include CMakeFiles/distclean.dir/compiler_depend.make
 include CMakeFiles/distclean.dir/progress.make
 
 CMakeFiles/distclean:
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --blue --bold --progress-dir=/home/giacomo/Documenti/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "distclean invoked"
-	/opt/mox/mk/toolchains/gcc-glibc/11.2.0/base/bin/cmake --build /home/giacomo/Documenti/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2/build --target clean
-	/opt/mox/mk/toolchains/gcc-glibc/11.2.0/base/bin/cmake --build /home/giacomo/Documenti/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2/build --target runclean
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --blue --bold --progress-dir=/mnt/d/IPROP_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "distclean invoked"
+	/opt/mox/mk/toolchains/gcc-glibc/11.2.0/base/bin/cmake --build /mnt/d/IPROP_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2/build --target clean
+	/opt/mox/mk/toolchains/gcc-glibc/11.2.0/base/bin/cmake --build /mnt/d/IPROP_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2/build --target runclean
 	/opt/mox/mk/toolchains/gcc-glibc/11.2.0/base/bin/cmake -E remove_directory CMakeFiles
 	/opt/mox/mk/toolchains/gcc-glibc/11.2.0/base/bin/cmake -E remove CMakeCache.txt cmake_install.cmake Makefile build.ninja rules.ninja .ninja_deps .ninja_log
 
@@ -86,6 +86,6 @@ CMakeFiles/distclean.dir/clean:
 .PHONY : CMakeFiles/distclean.dir/clean
 
 CMakeFiles/distclean.dir/depend:
-	cd /home/giacomo/Documenti/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2/build && $(CMAKE_COMMAND) -E cmake_depends "Unix Makefiles" /home/giacomo/Documenti/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2 /home/giacomo/Documenti/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2 /home/giacomo/Documenti/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2/build /home/giacomo/Documenti/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2/build /home/giacomo/Documenti/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2/build/CMakeFiles/distclean.dir/DependInfo.cmake "--color=$(COLOR)"
+	cd /mnt/d/IPROP_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2/build && $(CMAKE_COMMAND) -E cmake_depends "Unix Makefiles" /mnt/d/IPROP_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2 /mnt/d/IPROP_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2 /mnt/d/IPROP_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2/build /mnt/d/IPROP_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2/build /mnt/d/IPROP_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2/build/CMakeFiles/distclean.dir/DependInfo.cmake "--color=$(COLOR)"
 .PHONY : CMakeFiles/distclean.dir/depend
 
