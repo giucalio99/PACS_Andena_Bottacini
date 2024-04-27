@@ -4,7 +4,7 @@
 using namespace dealii;
 using namespace std;
 
-#include "Geometry.hpp"
+// #include "Geometry.hpp"
 #include "Constants.hpp"
 #include "NS_Preconditioners.hpp"
 #include "Boundaries_Values.hpp"
@@ -14,7 +14,7 @@ class Problem
 {
 
 public:
-  Problem();
+  Problem(parallel::distributed::Triangulation<dim> &tria);
 
   void run();
   
@@ -52,6 +52,7 @@ private:
   Vector<double> ion_rhs;
   Vector<double> eta;
 
+
   Vector<double> Vel_X;
   Vector<double> Vel_Y;
   Vector<double> pressure;
@@ -79,12 +80,20 @@ private:
   BlockVector<double> NS_newton_update;
   BlockVector<double> NS_system_rhs;
 
+  std::vector<IndexSet> owned_partitioning;                // The IndexSets of owned velocity and pressure respectively.
+  std::vector<IndexSet> relevant_partitioning;             // The IndexSets of relevant velocity and pressure respectively.
+  IndexSet locally_relevant_dofs;                          //IndexSet: a class that represents a subset of indices among a larger set. 
+
   unsigned int step_number = 0;
   double timestep = 0;
 
   Timer timer;
 
-  void create_mesh();
+  MPI_Comm mpi_communicator;
+
+  ConditionalOStream pcout; 
+
+  //void create_mesh();
 
   void setup_poisson();
   void assemble_nonlinear_poisson();

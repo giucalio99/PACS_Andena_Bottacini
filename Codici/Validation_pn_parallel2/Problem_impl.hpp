@@ -327,13 +327,6 @@ void Problem<dim>::newton_iteration_poisson(const double tolerance, const unsign
 			const double alpha = 1.;
 			cout << "Norm before clamping is " << poisson_newton_update.linfty_norm() << endl;   // compute and print the L inf norm of the solution of the newton iteration
 
-			PETScWrappers::MPI::Vector tmp1;    //Aggiunti per gestire il fatto che i miei due vettori soluzione siano ghosted
-			PETScWrappers::MPI::Vector tmp2;
-			tmp1.reinit(locally_owned_dofs, mpi_communicator); 
-            tmp1 = old_electron_density;
-			tmp2.reinit(locally_owned_dofs, mpi_communicator);   
-            tmp2 = old_ion_density;
-
 			for (unsigned int i = 0; i < poisson_newton_update.size(); i++) {
 
 				//const PETScWrappers::MPI::Vector temp(poisson_newton_update);    //Ho bisogno di un oggetto const per accedere al metodo () const. !!! Non efficente
@@ -347,19 +340,16 @@ void Problem<dim>::newton_iteration_poisson(const double tolerance, const unsign
 				}
 				poisson_newton_update(i) = result;
 				
-				tmp1(i) *= std::exp(alpha*result/V_E);
-				tmp2(i) *= std::exp(alpha*result/V_E);
+				old_electron_density(i) *= std::exp(alpha*result/V_E);
+				old_ion_density(i) *= std::exp(-alpha*result/V_E);
 			}
 
-			tmp1.compress(VectorOperation::insert); 
-			tmp2.compress(VectorOperation::insert); 
+			old_electron_density.compress(VectorOperation::insert); 
+			old_ion_density.compress(VectorOperation::insert); 
 			poisson_newton_update.compress(VectorOperation::insert); 
 
-			constraints_poisson.distribute(tmp1);      //apply constrains on old_ion_density
-			constraints_poisson.distribute(tmp2); //apply constrains on old_electron_density
-
-			old_electron_density = tmp1;
-			old_ion_density = tmp2;
+			constraints_poisson.distribute(old_electron_density);      //apply constrains on old_ion_density
+			constraints_poisson.distribute(old_ion_density);           //apply constrains on old_electron_density
 
 			PETScWrappers::MPI::Vector tmp3;
 			tmp3.reinit(locally_owned_dofs, mpi_communicator);

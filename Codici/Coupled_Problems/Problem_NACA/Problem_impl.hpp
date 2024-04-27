@@ -1,10 +1,14 @@
 template <int dim>
-Problem<dim>::Problem()
-  : fe(1) // linear  elements
+Problem<dim>::Problem(parallel::distributed::Triangulation<dim> &tria)
+  : triangulation(tria)
+  , fe(1) // linear  elements
   , dof_handler(triangulation)
   , timestep(1.e-5)
   , mapping(1)
 
+  ,	mpi_communicator(MPI_COMM_WORLD),
+  , pcout(std::cout, Utilities::MPI::this_mpi_process(mpi_communicator) == 0),
+  
   ,	viscosity(stratosphere ? 1.6e-4 : 1.8e-5) //  [m^2/s^2]
   , gamma(1.) // should be the same order of magnitude as the expected velocity
   , degree(1)
@@ -15,82 +19,82 @@ Problem<dim>::Problem()
 
 //-----------------------------------------------------------------------------------------------------------------------------------------------------
 
-template <int dim>
-void Problem<dim>::create_mesh()
-{
-	const std::string filename =  "../../gmsh/REAL_EMITTER.msh";
-	cout << "Reading from " << filename << endl;
-	std::ifstream input_file(filename);
-	GridIn<2>       grid_in;
-	grid_in.attach_triangulation(triangulation);
-	grid_in.read_msh(input_file);
+// template <int dim>
+// void Problem<dim>::create_mesh()
+// {
+// 	const std::string filename =  "../../gmsh/REAL_EMITTER.msh";
+// 	cout << "Reading from " << filename << endl;
+// 	std::ifstream input_file(filename);
+// 	GridIn<2>       grid_in;
+// 	grid_in.attach_triangulation(triangulation);
+// 	grid_in.read_msh(input_file);
 
-	const types::manifold_id emitter = 1;
-  	const Point<dim> center(X,0.);
-  	SphericalManifold<2> emitter_manifold(center);
+// 	const types::manifold_id emitter = 1;
+//   	const Point<dim> center(X,0.);
+//   	SphericalManifold<2> emitter_manifold(center);
 
-  	const int up = 1;
-  	const int down = -1;
-	const types::manifold_id collector_up = 2;
-	CollectorGeometry<2,up> naca_up;
-	const types::manifold_id collector_down = 3;
-	CollectorGeometry<2,down> naca_down;
+//   	const int up = 1;
+//   	const int down = -1;
+// 	const types::manifold_id collector_up = 2;
+// 	CollectorGeometry<2,up> naca_up;
+// 	const types::manifold_id collector_down = 3;
+// 	CollectorGeometry<2,down> naca_down;
 
-	triangulation.set_all_manifold_ids_on_boundary(1, emitter);
-	triangulation.set_manifold(emitter, emitter_manifold);
-	triangulation.set_all_manifold_ids_on_boundary(2, collector_up);
-	triangulation.set_manifold(collector_up, naca_up);
-	triangulation.set_all_manifold_ids_on_boundary(3, collector_down);
-	triangulation.set_manifold(collector_down, naca_down);
+// 	triangulation.set_all_manifold_ids_on_boundary(1, emitter);
+// 	triangulation.set_manifold(emitter, emitter_manifold);
+// 	triangulation.set_all_manifold_ids_on_boundary(2, collector_up);
+// 	triangulation.set_manifold(collector_up, naca_up);
+// 	triangulation.set_all_manifold_ids_on_boundary(3, collector_down);
+// 	triangulation.set_manifold(collector_down, naca_down);
 
-	for (auto &cell : triangulation.active_cell_iterators()) {
-		if (cell->at_boundary()) {
-			for (const auto &face : cell->face_iterators()) {
-				if (face->at_boundary()&& face->boundary_id()==2) {
-					for (unsigned int i = 0; i < 2; ++i) {
-						face->vertex(i)[1] = get_collector_height(face->vertex(i)[0]);
-						//cout << face->vertex(i)[0] << " mapped to " << face->vertex(i)[1] << endl;
-					}
-		         } else if (face->at_boundary()&& face->boundary_id()==3) {
-					for (unsigned int i = 0; i < 2; ++i) {
-						face->vertex(i)[1] = -get_collector_height(face->vertex(i)[0]);
-						//cout << face->vertex(i)[0] << " mapped to " << face->vertex(i)[1] << endl;
-					}
-				}
+// 	for (auto &cell : triangulation.active_cell_iterators()) {
+// 		if (cell->at_boundary()) {
+// 			for (const auto &face : cell->face_iterators()) {
+// 				if (face->at_boundary()&& face->boundary_id()==2) {
+// 					for (unsigned int i = 0; i < 2; ++i) {
+// 						face->vertex(i)[1] = get_collector_height(face->vertex(i)[0]);
+// 						//cout << face->vertex(i)[0] << " mapped to " << face->vertex(i)[1] << endl;
+// 					}
+// 		         } else if (face->at_boundary()&& face->boundary_id()==3) {
+// 					for (unsigned int i = 0; i < 2; ++i) {
+// 						face->vertex(i)[1] = -get_collector_height(face->vertex(i)[0]);
+// 						//cout << face->vertex(i)[0] << " mapped to " << face->vertex(i)[1] << endl;
+// 					}
+// 				}
 
-			}
+// 			}
 
-		}
-	}
+// 		}
+// 	}
 
-	const unsigned int pre_refinement_steps = 2;
+// 	const unsigned int pre_refinement_steps = 2;
 
-	for (unsigned int i = 0; i < pre_refinement_steps; ++i) {
+// 	for (unsigned int i = 0; i < pre_refinement_steps; ++i) {
 
-	  const double threshold = collector_length/20./(i+1);
-	  Vector<float> criteria(triangulation.n_active_cells());
-	  unsigned int ctr = 0;
+// 	  const double threshold = collector_length/20./(i+1);
+// 	  Vector<float> criteria(triangulation.n_active_cells());
+// 	  unsigned int ctr = 0;
 
-		for (auto &cell : triangulation.active_cell_iterators()) {
+// 		for (auto &cell : triangulation.active_cell_iterators()) {
 
-		  Point<2> c = cell->center();
-		  double d = threshold + 1.;
-		  if (c[0] <= g + collector_length*0.3 + threshold && c[0] >= g - 3.*threshold)
-			  d = std::fabs(c[1]) - get_collector_height(c[0]);
+// 		  Point<2> c = cell->center();
+// 		  double d = threshold + 1.;
+// 		  if (c[0] <= g + collector_length*0.3 + threshold && c[0] >= g - 3.*threshold)
+// 			  d = std::fabs(c[1]) - get_collector_height(c[0]);
 
-		  if (d < threshold)
-			  criteria[ctr++] = 1;
-		  else
-			  criteria[ctr++] = 0;
-		}
-	  GridRefinement::refine(triangulation, criteria, 0.5);
-	  triangulation.execute_coarsening_and_refinement();
-	}
+// 		  if (d < threshold)
+// 			  criteria[ctr++] = 1;
+// 		  else
+// 			  criteria[ctr++] = 0;
+// 		}
+// 	  GridRefinement::refine(triangulation, criteria, 0.5);
+// 	  triangulation.execute_coarsening_and_refinement();
+// 	}
 
-	cout  << "Active cells: " << triangulation.n_active_cells() << endl;
-}
+// 	cout  << "Active cells: " << triangulation.n_active_cells() << endl;
+// }
 
-//-----------------------------------------------------------------------------------------------------------------------------------------------------
+// //-----------------------------------------------------------------------------------------------------------------------------------------------------
 
 template <int dim>
 void Problem<dim>::setup_poisson()
@@ -350,7 +354,7 @@ void Problem<dim>::assemble_drift_diffusion_matrix()
 				}
 			}
 		}
-		// End RObin conditions
+		// End Robin conditions
 
 		// Lexicographic ordering
 		const Point<dim> v1 = cell->vertex(2); // top left
@@ -624,10 +628,7 @@ template <int dim>
   void Problem<dim>::setup_navier_stokes()
   {
     NS_dof_handler.distribute_dofs(NS_fe);
-
-	Vel_X.reinit(dof_handler.n_dofs());
-	Vel_Y.reinit(dof_handler.n_dofs());
-	pressure.reinit(dof_handler.n_dofs());
+	DoFRenumbering::Cuthill_McKee(NS_dof_handler); 
 
     std::vector<unsigned int> block_component(dim + 1, 0);
     block_component[dim] = 1;
@@ -637,79 +638,88 @@ template <int dim>
     unsigned int dof_u = dofs_per_block[0];
     unsigned int dof_p = dofs_per_block[1];
 
+
+	owned_partitioning.resize(2);
+    owned_partitioning[0] = dof_handler.locally_owned_dofs().get_view(0, dof_u);      //Extract the set of locally owned DoF indices for each component within the mask that are owned by the current processor.
+    owned_partitioning[1] = dof_handler.locally_owned_dofs().get_view(dof_u, dof_u + dof_p);
+
+    DoFTools::extract_locally_relevant_dofs(dof_handler,locally_relevant_dofs);     //Extract the set of global DoF indices that are active on the current DoFHandler. This is the union of DoFHandler::locally_owned_dofs() and the DoF indices on all ghost cells.
+    relevant_partitioning.resize(2);
+    relevant_partitioning[0] = locally_relevant_dofs.get_view(0, dof_u);
+    relevant_partitioning[1] = locally_relevant_dofs.get_view(dof_u, dof_u + dof_p);
+
+
     const FEValuesExtractors::Vector velocities(0);
     const FEValuesExtractors::Scalar vertical_velocity(1);
     const FEValuesExtractors::Vector vertical_velocity_and_pressure(1);
     {
-      nonzero_NS_constraints.clear();
+	nonzero_NS_constraints.clear();
+	nonzero_NS_constraints.reinit(locally_relevant_dofs);     
+	
+	DoFTools::make_hanging_node_constraints(NS_dof_handler, nonzero_NS_constraints);
 
-      DoFTools::make_hanging_node_constraints(NS_dof_handler, nonzero_NS_constraints);
-      VectorTools::interpolate_boundary_values(NS_dof_handler,
-                                                0,
-                                                Functions::ZeroFunction<dim>(dim+1),
-                                                nonzero_NS_constraints,
-                                                NS_fe.component_mask(vertical_velocity));
-      VectorTools::interpolate_boundary_values(NS_dof_handler,
-                                                1,
-                                                Functions::ZeroFunction<dim>(dim+1),
-                                                nonzero_NS_constraints,
-                                                NS_fe.component_mask(velocities));
-      VectorTools::interpolate_boundary_values(NS_dof_handler,
-                                                2,
-                                                Functions::ZeroFunction<dim>(dim+1),
-                                                nonzero_NS_constraints,
-                                                NS_fe.component_mask(velocities));
-      VectorTools::interpolate_boundary_values(NS_dof_handler,
-                                                3,
-                                                Functions::ZeroFunction<dim>(dim+1),
-                                                nonzero_NS_constraints,
-                                                NS_fe.component_mask(velocities));
+    VectorTools::interpolate_boundary_values(dof_handler,                           
+                                            0,                                      // Up and down 
+                                            Functions::ZeroFunction<dim>(dim+1),    // For each degree of freedom at the boundary, its boundary value will be overwritten if its index already exists in boundary_values. Otherwise, a new entry with proper index and boundary value for this degree of freedom will be inserted into boundary_values.
+                                            nonzero_NS_constraints,
+                                            fe.component_mask(vertical_velocity));
+    VectorTools::interpolate_boundary_values(dof_handler,
+                                            3,                                      //Emitter                  
+                                            Functions::ZeroFunction<dim>(dim+1),
+                                            nonzero_NS_constraints,
+                                            fe.component_mask(velocities));
+    VectorTools::interpolate_boundary_values(dof_handler,
+                                            4,                                      //Collector                                     
+                                            Functions::ZeroFunction<dim>(dim+1),
+                                            nonzero_NS_constraints,
+                                            fe.component_mask(velocities));
+    VectorTools::interpolate_boundary_values(dof_handler, 
+                                            1,                    // Inlet
+                                            BoundaryValues<dim>(), // Functions::ZeroFunction<dim>(dim+1), 
+                                            nonzero_NS_constraints, 
+                                            fe.component_mask(velocities));
+    
 
-	  VectorTools::interpolate_boundary_values(NS_dof_handler, 10, Functions::ZeroFunction<dim>(dim+1), nonzero_NS_constraints, NS_fe.component_mask(vertical_velocity));
-      //VectorTools::interpolate_boundary_values(NS_dof_handler, 10, BoundaryValues<dim>(), nonzero_NS_constraints, NS_fe.component_mask(velocities));
-
-      VectorTools::interpolate_boundary_values(NS_dof_handler,
-                                               11, // Outlet
-											   BoundaryValues<dim>(),//Functions::ZeroFunction<dim>(dim+1),
-											   nonzero_NS_constraints,
-											   NS_fe.component_mask(vertical_velocity_and_pressure));
+    VectorTools::interpolate_boundary_values(dof_handler,
+                                            2,                    // Outlet
+                                            Functions::ZeroFunction<dim>(dim+1),//BoundaryValues<dim>()
+                                            nonzero_NS_constraints,
+                                            fe.component_mask(vertical_velocity_and_pressure));  //Vertical velocity and pressure at outlet equal to 0
     }
     nonzero_NS_constraints.close();
 
     {
-      zero_NS_constraints.clear();
+    zero_NS_constraints.clear();                // The IndexSets of owned velocity and pressure respectively.
 
-      DoFTools::make_hanging_node_constraints(NS_dof_handler, zero_NS_constraints);
-      VectorTools::interpolate_boundary_values(NS_dof_handler,
-                                                0,
-                                                Functions::ZeroFunction<dim>(dim+1),
-                                                zero_NS_constraints,
-                                                NS_fe.component_mask(vertical_velocity));
-      VectorTools::interpolate_boundary_values(NS_dof_handler,
-                                                1,
-                                                Functions::ZeroFunction<dim>(dim+1),
-                                                zero_NS_constraints,
-                                                NS_fe.component_mask(velocities));
-      VectorTools::interpolate_boundary_values(NS_dof_handler,
-                                                2,
-                                                Functions::ZeroFunction<dim>(dim+1),
-                                                zero_NS_constraints,
-                                                NS_fe.component_mask(velocities));
-      VectorTools::interpolate_boundary_values(NS_dof_handler,
-                                                3,
-                                                Functions::ZeroFunction<dim>(dim+1),
-                                                zero_NS_constraints,
-                                                NS_fe.component_mask(velocities));
-      VectorTools::interpolate_boundary_values(NS_dof_handler,
-                                                10,
-                                                Functions::ZeroFunction<dim>(dim+1),
-                                                zero_NS_constraints,
-                                                NS_fe.component_mask(velocities));
-      VectorTools::interpolate_boundary_values(NS_dof_handler,
-                                               11, // Outlet
-											   Functions::ZeroFunction<dim>(dim+1),
-											   zero_NS_constraints,
-											   NS_fe.component_mask(vertical_velocity_and_pressure));
+	zero_NS_constraints.reinit(locally_relevant_dofs);
+
+    DoFTools::make_hanging_node_constraints(NS_dof_handler, zero_NS_constraints);
+
+    VectorTools::interpolate_boundary_values(dof_handler,
+                                            0,
+                                            Functions::ZeroFunction<dim>(dim+1),
+                                            zero_NS_constraints,
+                                            fe.component_mask(vertical_velocity));
+    VectorTools::interpolate_boundary_values(dof_handler,
+                                            3,
+                                            Functions::ZeroFunction<dim>(dim+1),
+                                            zero_NS_constraints,
+                                            fe.component_mask(velocities));
+    VectorTools::interpolate_boundary_values(dof_handler,
+                                            4,
+                                            Functions::ZeroFunction<dim>(dim+1),
+                                            zero_NS_constraints,
+                                            fe.component_mask(velocities));
+    VectorTools::interpolate_boundary_values(dof_handler,
+                                            1,
+                                            Functions::ZeroFunction<dim>(dim+1),
+                                            zero_NS_constraints,
+                                            fe.component_mask(velocities));
+    VectorTools::interpolate_boundary_values(dof_handler,
+                                            2, 
+                                            Functions::ZeroFunction<dim>(dim+1),
+                                            zero_NS_constraints,
+                                            fe.component_mask(vertical_velocity_and_pressure));
     }
     zero_NS_constraints.close();
 
@@ -721,17 +731,21 @@ template <int dim>
       NS_sparsity_pattern.copy_from(dsp);
     }
 
-    NS_system_matrix.reinit(NS_sparsity_pattern);
+    NS_system_matrix.reinit(owned_partitioning, dsp, mpi_communicator);
 
-    NS_solution.reinit(dofs_per_block);
-    NS_newton_update.reinit(dofs_per_block);
-    NS_system_rhs.reinit(dofs_per_block);
+    NS_solution.reinit(owned_partitioning, relevant_partitioning mpi_communicator);
+    NS_newton_update.reinit(owned_partitioning, mpi_communicator);
+    NS_system_rhs.reinit(owned_partitioning, mpi_communicator);
+
+	Vel_X.reinit(owned_partitioning, mpi_communicator);
+	Vel_Y.reinit(owned_partitioning, mpi_communicator);
+	pressure.reinit(owned_partitioning, mpi_communicator);
   }
 
 //-----------------------------------------------------------------------------------------------------------------------------------------------------
 
 template <int dim>
-  void Problem<dim>::assemble_navier_stokes(const bool initial_step)
+  void Problem<dim>::assemble_navier_stokes(const bool use_nonzero_constraints)
   {
     NS_system_matrix = 0; // It is technically unnecessary to assemble every time...
     NS_system_rhs = 0;
@@ -765,11 +779,11 @@ template <int dim>
 
     Tensor<1,dim> f;
 
-    auto ion_cell = dof_handler.begin_active();
+    auto ion_cell = dof_handler.begin_active();          
     const auto ion_endc = dof_handler.end();
     std::vector<types::global_dof_index> ion_local_dof_indices(4);
 
-    for (const auto &cell : NS_dof_handler.active_cell_iterators())
+    for (const auto &cell : NS_dof_handler.active_cell_iterators(); cell != dion_endc; ++cell)
       {
         fe_values.reinit(cell);
 
@@ -784,7 +798,7 @@ template <int dim>
         fe_values[pressure].get_function_values(NS_solution, //evaluation_point,
                                                 present_pressure_values);
 
-        if (ion_cell != ion_endc)
+        if (ion_cell != ion_endc)           //QUESTO IF NON SERVE PIÙ MA INTANTO LO TENIAMO
         	ion_cell->get_dof_indices(ion_local_dof_indices);
         else
         	cout << "Warning! Reached end of ion cells at NS cell " << cell->index() << endl;
@@ -839,50 +853,70 @@ template <int dim>
 
         cell->get_dof_indices(local_dof_indices);
 
-        const AffineConstraints<double> &constraints_used = initial_step ? nonzero_NS_constraints : zero_NS_constraints;
+        const AffineConstraints<double> &constraints_used = use_nonzero_constraints ? nonzero_NS_constraints : zero_NS_constraints;
+
         constraints_used.distribute_local_to_global(local_matrix, local_rhs, local_dof_indices, NS_system_matrix, NS_system_rhs);
 
-        if (ion_cell != ion_endc)
-        	ion_cell++;
+        // if (ion_cell != ion_endc)      //QUESTO IF NON SERVE PIÙ 
+        // 	ion_cell++;
 
       }
         // Move the pressure mass matrix into a separate matrix:
-        pressure_mass_matrix.reinit(NS_sparsity_pattern.block(1, 1));
+        pressure_mass_matrix.reinit(NS_sparsity_pattern.block(1, 1));     //PER RENDERLO PIÙ ELEGANTE SI PUÒ FARE COME IN TDNS CREANDOLE SEPARATAMENTE
         pressure_mass_matrix.copy_from(NS_system_matrix.block(1, 1));
 
         NS_system_matrix.block(1, 1) = 0;
+
+		NS_system_matrix.compress(VectorOperation::add);
+		NS_system_rhs.compress(VectorOperation::add);
+
+		pressure_mass_matrix.compress(VectorOperation::add);
 
   }
 
 //-----------------------------------------------------------------------------------------------------------------------------------------------------
 
 template <int dim>
-void Problem<dim>::solve_nonlinear_navier_stokes_step(const bool initial_step)
+void Problem<dim>::solve_nonlinear_navier_stokes_step(const bool use_nonzero_constraints)
 {
-  const AffineConstraints<double> &constraints_used =
-    initial_step ? nonzero_NS_constraints : zero_NS_constraints;
-
   const double tol = 1e-4 * NS_system_rhs.block(0).linfty_norm(); // Changed from: const double tol = 1e-4 * NS_system_rhs.l2_norm();
 
   SolverControl solver_control(NS_system_matrix.m(),
                                tol,
                                true);
 
-  SolverFGMRES<BlockVector<double>> gmres(solver_control);
-  SparseILU<double>                 pmass_preconditioner;
+//   SolverFGMRES<BlockVector<double>> gmres(solver_control);
+  GrowingVectorMemory<PETScWrappers::MPI::BlockVector> vector_memory;
+  SolverFGMRES<PETScWrappers::MPI::BlockVector> gmres(solver_control,
+                                                        vector_memory);
+
+  SparseILU<double>                 pmass_preconditioner; 
   pmass_preconditioner.initialize(pressure_mass_matrix,
                                   SparseILU<double>::AdditionalData());
 
-  const BlockSchurPreconditioner<SparseILU<double>> preconditioner(
-    gamma,
-    viscosity,
-    NS_system_matrix,
-    pressure_mass_matrix,
-    pmass_preconditioner);
+//   const BlockSchurPreconditioner<SparseILU<double>> preconditioner(
+//     gamma,
+//     viscosity,
+//     NS_system_matrix,
+//     pressure_mass_matrix,
+//     pmass_preconditioner);
 
-  gmres.solve(NS_system_matrix, NS_newton_update, NS_system_rhs, preconditioner);
+  preconditioner.reset(new BlockSchurPreconditioner(timer,
+                                                        gamma,
+                                                        viscosity,
+                                                        time.get_delta_t(),
+                                                        owned_partitioning,
+                                                        system_matrix,
+                                                        mass_matrix,
+                                                        mass_schur));
+
+  gmres.solve(NS_system_matrix, NS_newton_update, NS_system_rhs, *preconditioner);
+  
   std::cout << "FGMRES steps: " << solver_control.last_step() << std::endl;
 
+  const AffineConstraints<double> &constraints_used =
+    use_nonzero_constraints ? nonzero_NS_constraints : zero_NS_constraints;
+  
   constraints_used.distribute(NS_newton_update);
 }
 
@@ -1150,7 +1184,7 @@ void Problem<dim>::run()
 	cout << " 	the ionization potential is " << Vi*1e-3  << " [kV]" << endl;
 	cout << endl;
 
-    create_mesh();
+    // create_mesh();
 
     const unsigned int max_steps = 500;
 
@@ -1185,7 +1219,7 @@ void Problem<dim>::run()
 
 		eta = old_ion_density;
 		Vector<double> previous_density(old_ion_density.size());
-
+step_number
 		while (err > gummel_tol && it < max_it) {
 
 			solve_nonlinear_poisson(tol, max_it); // Updates potential and eta
@@ -1221,6 +1255,8 @@ void Problem<dim>::run()
 	std::cout << " 	Elapsed CPU time: " << timer.cpu_time()/60. << " minutes.\n" << std::endl << std::endl;
 
 }
+
+
 
 //############################## AUXILIARY FUNCTIONS ###########################################################################################à
 
