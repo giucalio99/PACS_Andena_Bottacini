@@ -53,10 +53,10 @@ RM = /opt/mox/mk/toolchains/gcc-glibc/11.2.0/base/bin/cmake -E rm -f
 EQUALS = =
 
 # The top-level source directory on which CMake was run.
-CMAKE_SOURCE_DIR = /home/giacomo/Documenti/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2
+CMAKE_SOURCE_DIR = /mnt/d/IPROP_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2
 
 # The top-level build directory on which CMake was run.
-CMAKE_BINARY_DIR = /home/giacomo/Documenti/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2/build
+CMAKE_BINARY_DIR = /mnt/d/IPROP_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2/build
 
 # Utility rule file for debug.
 
@@ -67,8 +67,8 @@ include CMakeFiles/debug.dir/compiler_depend.make
 include CMakeFiles/debug.dir/progress.make
 
 CMakeFiles/debug:
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --blue --bold --progress-dir=/home/giacomo/Documenti/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Switching CMAKE_BUILD_TYPE to Debug"
-	/opt/mox/mk/toolchains/gcc-glibc/11.2.0/base/bin/cmake -DCMAKE_BUILD_TYPE=Debug /home/giacomo/Documenti/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --blue --bold --progress-dir=/mnt/d/IPROP_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Switching CMAKE_BUILD_TYPE to Debug"
+	/opt/mox/mk/toolchains/gcc-glibc/11.2.0/base/bin/cmake -DCMAKE_BUILD_TYPE=Debug /mnt/d/IPROP_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2
 	/opt/mox/mk/toolchains/gcc-glibc/11.2.0/base/bin/cmake -E echo "***"
 	/opt/mox/mk/toolchains/gcc-glibc/11.2.0/base/bin/cmake -E echo "*** Switched to Debug mode. Now recompile with:  \$$ make"
 	/opt/mox/mk/toolchains/gcc-glibc/11.2.0/base/bin/cmake -E echo "***"
@@ -86,6 +86,6 @@ CMakeFiles/debug.dir/clean:
 .PHONY : CMakeFiles/debug.dir/clean
 
 CMakeFiles/debug.dir/depend:
-	cd /home/giacomo/Documenti/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2/build && $(CMAKE_COMMAND) -E cmake_depends "Unix Makefiles" /home/giacomo/Documenti/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2 /home/giacomo/Documenti/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2 /home/giacomo/Documenti/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2/build /home/giacomo/Documenti/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2/build /home/giacomo/Documenti/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2/build/CMakeFiles/debug.dir/DependInfo.cmake "--color=$(COLOR)"
+	cd /mnt/d/IPROP_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2/build && $(CMAKE_COMMAND) -E cmake_depends "Unix Makefiles" /mnt/d/IPROP_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2 /mnt/d/IPROP_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2 /mnt/d/IPROP_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2/build /mnt/d/IPROP_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2/build /mnt/d/IPROP_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2/build/CMakeFiles/debug.dir/DependInfo.cmake "--color=$(COLOR)"
 .PHONY : CMakeFiles/debug.dir/depend
 

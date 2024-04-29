@@ -7,7 +7,7 @@ set(CMAKE_DEPENDS_GENERATOR "Unix Makefiles")
 # The top level Makefile was generated from the following files:
 set(CMAKE_MAKEFILE_DEPENDS
   "CMakeCache.txt"
-  "/home/giacomo/Documenti/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2/CMakeLists.txt"
+  "/mnt/d/IPROP_PROJECT/PACS_Andena_Bottacini/Codici/Validation_pn_parallel2/CMakeLists.txt"
   "CMakeFiles/3.29.0/CMakeCCompiler.cmake"
   "CMakeFiles/3.29.0/CMakeCXXCompiler.cmake"
   "CMakeFiles/3.29.0/CMakeSystem.cmake"
