@@ -3,7 +3,7 @@
 ##
 
 # Set the name of the project and target:
-# set(TARGET "Validation_pn")
+set(TARGET "problem")
 
 # Declare all source files the target consists of. Here, this is only
 # the one step-X.cc file, but as you expand your project you may wish
@@ -23,8 +23,8 @@ set(TARGET_SRC
 
 cmake_minimum_required(VERSION 3.13.4)
 
-find_package(deal.II 9.3.1
-  HINTS /u/sw/toolchains/gcc-glibc/11.2.0/pkgs/dealii/9.3.1
+find_package(deal.II 9.4.0
+  HINTS ${deal.II_DIR} ${DEAL_II_DIR} ../ ../../ $ENV{DEAL_II_DIR}
   )
 if(NOT ${deal.II_FOUND})
   message(FATAL_ERROR "\n"

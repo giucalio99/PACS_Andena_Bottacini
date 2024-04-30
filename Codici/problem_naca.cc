@@ -83,9 +83,9 @@ const double Avo = 6.022e+23; // Avogadro's number
 
 const double q_over_eps_0 = q0 / eps_0; // [m^3 kg C^-1 s^-2]
 const double mu0 = 1.83e-4; // [m^2/s/V] from Moseley
-const double Mu = mu0 * delta; // scaled mobility from Moseley
+const double mu = mu0 * delta; // scaled mobility from Moseley
 const double V_E = kB * T / q0; // [V] ion temperature
-const double D = Mu * V_E;
+const double D = mu * V_E;
 //const double n_air = rho / Mm * Avo; // m^-3
 
 // Geometry Data
@@ -215,7 +215,7 @@ private:
 
   FE_Q<dim>       fe;
   DoFHandler<dim> dof_handler;
-  MappingQ  mapping;
+  MappingQ<dim>  mapping;
 
   AffineConstraints<double> ion_constraints;
   AffineConstraints<double> constraints_poisson;
@@ -418,7 +418,7 @@ FullMatrix<double> compute_triangle_matrix(const Point<2> a, const Point<2> b, c
 	bernoulli(alpha23,bp23,bn23);
 	bernoulli(alpha31,bp31,bn31);
 
-	const double D = Mu * V_E;
+	const double D = mu * V_E;
 
 	tria_matrix(0,1) = D * area * bp12 * l_12;
 	tria_matrix(0,2) = D * area * bn31 * l_31;
@@ -872,7 +872,7 @@ void Problem<dim>::assemble_drift_diffusion_matrix()
 							if (std::isnan(En) || En <0.) cout << "WARNING! Scalar product is " << En << " in " << face->center() << endl;
 
 							for (unsigned int j = 0; j < vertices_per_cell; ++j) {
-									Robin(i,j) += face_values.JxW(q) * face_values.shape_value(i,q) * face_values.shape_value(j,q) * (Vh + Mu * En);
+									Robin(i,j) += face_values.JxW(q) * face_values.shape_value(i,q) * face_values.shape_value(j,q) * (Vh + mu * En);
 							}
 						}
 					}
