@@ -242,6 +242,64 @@ void Problem<dim>::assemble_mass_matrix()
 
 
 //------------------------------------------------------------------------------------------------------------------------------------------------------------
+// template <int dim>
+// void Problem<dim>::assemble_nonlinear_poisson()
+// {
+//   DynamicSparsityPattern dsp_poisson(locally_relevant_dofs);
+//   DoFTools::make_sparsity_pattern(dof_handler, dsp_poisson, constraints_poisson, true);
+//   SparsityTools::distribute_sparsity_pattern(dsp_poisson, dof_handler.locally_owned_dofs(), mpi_communicator, locally_relevant_dofs);
+
+//   // ASSEMBLE MATRICES
+//   system_matrix_poisson = 0; //sets all elements of the matrix to zero, but keep the sparsity pattern previously used.
+//   PETScWrappers::MPI::SparseMatrix ion_mass_matrix; // We initialized the new ion_mass_matrix with our sparsity pattern
+//   ion_mass_matrix.reinit(locally_owned_dofs, locally_owned_dofs, dsp_poisson, mpi_communicator);
+//   ion_mass_matrix = 0; // and then set all the elments to zero
+
+  
+//   // compute the ion mass matrix
+//   for (unsigned int i = 0; i < old_ion_density.size(); ++i){
+// 	  ion_mass_matrix.set(i,i, mass_matrix_poisson(i,i) * (old_ion_density(i) + old_electron_density(i)));
+//   }
+
+//   ion_mass_matrix.compress(VectorOperation::insert); 
+
+//   cout << "Matrix linf norm 1 is " << ion_mass_matrix.linfty_norm() << endl;
+//   cout << "Matrix frob norm 1 is " << ion_mass_matrix.frobenius_norm() << endl;
+
+//   system_matrix_poisson.add(q0 / V_E, ion_mass_matrix);  // A += factor * B with the passed values
+//   cout << "system_matrix_poisson norm is " << system_matrix_poisson.linfty_norm() << std::endl;  // compute and print the infinit norm of the matrix
+
+//   system_matrix_poisson.add(eps_r * eps_0, laplace_matrix_poisson); // same as above
+//   cout << "system_matrix_poisson norm is " << system_matrix_poisson.linfty_norm() << std::endl;
+
+//   // ASSEMBLE RHS
+//   poisson_rhs = 0; // set all the values to zero
+//   PETScWrappers::MPI::Vector tmp(locally_owned_dofs, mpi_communicator); //temporary vector of dimension n_dof
+//   PETScWrappers::MPI::Vector doping_and_ions(locally_owned_dofs, mpi_communicator); // create a new vector of dimension n_dof
+//   VectorTools::interpolate(mapping,dof_handler, DopingValues<dim>(), doping_and_ions); // We interpolate the previusly created vector with the initial values of Doping provided by DopingValues
+  
+//   doping_and_ions -= old_electron_density;
+//   doping_and_ions += old_ion_density;
+
+//   mass_matrix_poisson.vmult(tmp,doping_and_ions);   //tmp = mass_matrix_poisson * doping_and_ions
+//   poisson_rhs.add(q0, tmp);//0, tmp);//
+//   laplace_matrix_poisson.vmult(tmp,potential);     //tmp = laplace_matrix_poisson * potential  //No problem, potential treated as const
+//   poisson_rhs.add(- eps_r * eps_0, tmp);
+
+//   poisson_rhs.compress(VectorOperation::insert); 
+//   laplace_matrix_poisson.compress(VectorOperation::insert); 
+  
+//   // CONDENSATE
+//   //Condense a given matrix and a given vector by eliminating rows and columns of the linear system that correspond to constrained dof.
+//   //The sparsity pattern associated with the matrix needs to be condensed and compressed. This function is the appropriate choice for applying inhomogeneous constraints.
+  
+//   // zero_constraints_poisson.condense(system_matrix_poisson, poisson_rhs);
+// }
+
+
+// IDEA: MENESSINI DICEVA CHE BISOGNAVA USARE ZERO_CONSTRAIN_POISSON IN NEWTON, NOI NON LO FACCIMAO
+
+
 template <int dim>
 void Problem<dim>::assemble_nonlinear_poisson()
 {
@@ -250,56 +308,69 @@ void Problem<dim>::assemble_nonlinear_poisson()
   SparsityTools::distribute_sparsity_pattern(dsp_poisson, dof_handler.locally_owned_dofs(), mpi_communicator, locally_relevant_dofs);
 
   // ASSEMBLE MATRICES
-  system_matrix_poisson = 0; //sets all elements of the matrix to zero, but keep the sparsity pattern previously used.
-  PETScWrappers::MPI::SparseMatrix ion_mass_matrix; // We initialized the new ion_mass_matrix with our sparsity pattern
-  ion_mass_matrix.reinit(locally_owned_dofs, locally_owned_dofs, dsp_poisson, mpi_communicator);
-  ion_mass_matrix = 0; // and then set all the elments to zero
+  const QTrapezoid<dim> quadrature_formula;
 
-  
-  // compute the ion mass matrix
-  for (unsigned int i = 0; i < old_ion_density.size(); ++i){
-	  ion_mass_matrix.set(i,i, mass_matrix_poisson(i,i) * (old_ion_density(i) + old_electron_density(i)));
-  }
+  system_matrix_poisson = 0;
+  poisson_rhs = 0;
 
-  ion_mass_matrix.compress(VectorOperation::insert); 
+  FEValues<dim> fe_values(fe,
+						quadrature_formula,
+						update_values | update_gradients |
+						update_quadrature_points | update_JxW_values);
 
-  cout << "Matrix linf norm 1 is " << ion_mass_matrix.linfty_norm() << endl;
-  cout << "Matrix frob norm 1 is " << ion_mass_matrix.frobenius_norm() << endl;
+  const unsigned int dofs_per_cell = fe.n_dofs_per_cell();
+  const unsigned int n_q_points    = quadrature_formula.size();
 
-  system_matrix_poisson.add(q0 / V_E, ion_mass_matrix);  // A += factor * B with the passed values
-  cout << "system_matrix_poisson norm is " << system_matrix_poisson.linfty_norm() << std::endl;  // compute and print the infinit norm of the matrix
+  FullMatrix<double> local_matrix(dofs_per_cell, dofs_per_cell);
+  Vector<double> local_rhs(dofs_per_cell);
 
-  system_matrix_poisson.add(eps_r * eps_0, laplace_matrix_poisson); // same as above
-  cout << "system_matrix_poisson norm is " << system_matrix_poisson.linfty_norm() << std::endl;
+  std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
 
-  // ASSEMBLE RHS
-  poisson_rhs = 0; // set all the values to zero
-  PETScWrappers::MPI::Vector tmp(locally_owned_dofs, mpi_communicator); //temporary vector of dimension n_dof
-  PETScWrappers::MPI::Vector doping_and_ions(locally_owned_dofs, mpi_communicator); // create a new vector of dimension n_dof
-  VectorTools::interpolate(mapping,dof_handler, DopingValues<dim>(), doping_and_ions); // We interpolate the previusly created vector with the initial values of Doping provided by DopingValues
-  
-  doping_and_ions -= old_electron_density;
-  doping_and_ions += old_ion_density;
+  std::vector<double> ion_density(n_q_points);     
+  std::vector<double> electron_density(n_q_points);              
+  std::vector<Tensor<1, dim, double>> potential_gradient(n_q_points);
 
-  mass_matrix_poisson.vmult(tmp,doping_and_ions);   //tmp = mass_matrix_poisson * doping_and_ions
-  poisson_rhs.add(q0, tmp);//0, tmp);//
-  laplace_matrix_poisson.vmult(tmp,potential);     //tmp = laplace_matrix_poisson * potential  //No problem, potential treated as const
-  poisson_rhs.add(- eps_r * eps_0, tmp);
+  for (const auto &cell : dof_handler.active_cell_iterators()){
+  if (cell->is_locally_owned())
+	{
+	local_matrix = 0.;
+	local_rhs = 0.;
 
-  poisson_rhs.compress(VectorOperation::insert); 
-  laplace_matrix_poisson.compress(VectorOperation::insert); 
-  
-  // CONDENSATE
-  //Condense a given matrix and a given vector by eliminating rows and columns of the linear system that correspond to constrained dof.
-  //The sparsity pattern associated with the matrix needs to be condensed and compressed. This function is the appropriate choice for applying inhomogeneous constraints.
-  
-  // zero_constraints_poisson.condense(system_matrix_poisson, poisson_rhs);
+	fe_values.reinit(cell);
+
+	//fe_values.get_function_values(poisson_newton_update, current_solution);     //in current_velocity_values i stored values of present_solution in quadrature points
+
+	fe_values.get_function_gradients(potential, potential_gradient);
+
+	fe_values.get_function_values(old_ion_density, ion_density);
+	fe_values.get_function_values(old_electron_density, electron_density);
+
+	for (unsigned int q_point = 0; q_point < n_q_points; ++q_point)
+		{
+		for (unsigned int i = 0; i < dofs_per_cell; ++i)
+			{
+			for (unsigned int j = 0; j < dofs_per_cell; ++j){
+				local_matrix(i, j) += ( eps_r * eps_0 * scalar_product(fe_values.shape_grad(i, q_point),fe_values.shape_grad(j, q_point)) +
+				q0/V_E*(ion_density[q_point] - electron_density[q_point]) * fe_values.shape_value(i, q_point) * fe_values.shape_value(j, q_point)) * fe_values.JxW(q_point);
+			}
+
+			local_rhs(i) +=
+                    ( -eps_r*eps_0 * scalar_product(potential_gradient[q_point], fe_values.shape_grad(i, q_point)) +
+					q0*(fe_values.shape_value(i, q_point) * (electron_density[q_point] + ion_density[q_point])) ) * fe_values.JxW(q_point);
+		}
+
+	cell->get_dof_indices(local_dof_indices);
+	constraints_poisson.distribute_local_to_global( local_matrix, local_rhs, local_dof_indices, laplace_matrix_poisson, poisson_rhs );
+	}
+
+  system_matrix_poisson.compress(VectorOperation::add);
+  poisson_rhs.compress(VectorOperation::add);
+
+   }
 }
-
-
-// IDEA: MENESSINI DICEVA CHE BISOGNAVA USARE ZERO_CONSTRAIN_POISSON IN NEWTON, NOI NON LO FACCIMAO
-
-
+   cout << "OUR NORM INF IS: " << system_matrix_poisson.linfty_norm() << endl;
+   cout << "OUR NORM FROB IS: " << system_matrix_poisson.frobenius_norm() << endl;
+}
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 // in this method we solve a linear system and we impose boundary conditions on the result vector. In particular here
