@@ -12,3 +12,5 @@ Codici/Validation_pn/build
 Codici/Validation_pn_parallel/build
 # Ignore build directory in Validation_pn
 Codici/Validation_pn_parallel2/build
+# Ignore build directory in step40
+Codici/step40/build
