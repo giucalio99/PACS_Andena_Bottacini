@@ -13,7 +13,7 @@ InsIMEX<dim>::InsIMEX(parallel::distributed::Triangulation<dim> &tria)
     face_quad_formula(degree + 2),
     mpi_communicator(MPI_COMM_WORLD),
     pcout(std::cout, Utilities::MPI::this_mpi_process(mpi_communicator) == 0),
-    time(1e0, 1e-3, 1e-2),
+    time(1e0, 1e-3, 5e-3),
     timer(mpi_communicator, pcout, TimerOutput::never, TimerOutput::wall_times)
 {
 }
@@ -60,8 +60,8 @@ void InsIMEX<dim>::make_constraints()
     zero_NS_constraints.clear();
     nonzero_NS_constraints.reinit(locally_relevant_dofs);      //clear() the AffineConstraints object and supply an IndexSet with lines that may be constrained
     zero_NS_constraints.reinit(locally_relevant_dofs);
-    DoFTools::make_hanging_node_constraints(dof_handler, nonzero_NS_constraints);      //Necessary when work with not homogeneous meshes (mesh non conformi) since in this cases we have the presence of hanging nodes. We have to impose constraints also on these.
-    DoFTools::make_hanging_node_constraints(dof_handler, zero_NS_constraints);
+    // DoFTools::make_hanging_node_constraints(dof_handler, nonzero_NS_constraints);      //Necessary when work with not homogeneous meshes (mesh non conformi) since in this cases we have the presence of hanging nodes. We have to impose constraints also on these.
+    // DoFTools::make_hanging_node_constraints(dof_handler, zero_NS_constraints);
 
     // Apply Dirichlet boundary conditions on all boundaries except for the
     // outlet.
@@ -134,7 +134,6 @@ void InsIMEX<dim>::make_constraints()
     zero_NS_constraints.close();
 
 }
-
 
 
 // @sect4{InsIMEX::initialize_system}
@@ -345,7 +344,7 @@ void InsIMEX<dim>::assemble(bool use_nonzero_constraints,
 // preconditioner should be reset or not.
 template <int dim>
 std::pair<unsigned int, double>
-InsIMEX<dim>::solve(bool use_nonzero_constraints, bool assemble_system)
+InsIMEX<dim>::solve(bool use_nonzero_constraints, bool assemble_system, double time_step)
 {
     if (assemble_system)
     {
@@ -359,17 +358,30 @@ InsIMEX<dim>::solve(bool use_nonzero_constraints, bool assemble_system)
                                                         mass_schur));
     }
 
+    double coeff = 0.0 ;   // to avoid to have a tolerance too small
+    if (time_step < 4) {
+        coeff = 1e-5;
+    } else if (time_step >= 4 && time_step < 10) {
+        coeff = 1e-3;
+    } else {
+        coeff = 1e-2;
+    }
+
     SolverControl solver_control(                                         //Used by iterative methods to determine whether the iteration should be continued
-    system_matrix.m(), 1e-8 * system_rhs.l2_norm(), true);
+    system_matrix.m(), coeff * system_rhs.l2_norm(), true);
+
     // Because PETScWrappers::SolverGMRES only accepts preconditioner
     // derived from PETScWrappers::PreconditionBase,
     // we use dealii SolverFGMRES.
-    GrowingVectorMemory<PETScWrappers::MPI::BlockVector> vector_memory;
-    SolverFGMRES<PETScWrappers::MPI::BlockVector> gmres(solver_control,
-                                                        vector_memory);
+    // // GrowingVectorMemory<PETScWrappers::MPI::BlockVector> vector_memory;
+    // // SolverFGMRES<PETScWrappers::MPI::BlockVector> gmres(solver_control,
+    // //                                                     vector_memory);
+    SolverBicgstab<PETScWrappers::MPI::BlockVector> bicg(solver_control);
 
+    pcout << "system_matrix frob norm is " << system_matrix.frobenius_norm() << std::endl;
+    pcout << "system_rhs l2 norm is " << system_rhs.l2_norm() << std::endl;
     // The solution vector must be non-ghosted
-    gmres.solve(system_matrix, solution_increment, system_rhs, *preconditioner);
+    bicg.solve(system_matrix, solution_increment, system_rhs, *preconditioner);
 
     const AffineConstraints<double> &constraints_used =
     use_nonzero_constraints ? nonzero_NS_constraints : zero_NS_constraints;
@@ -398,7 +410,7 @@ void InsIMEX<dim>::run()
     PETScWrappers::MPI::BlockVector tmp1;
 	tmp1.reinit(owned_partitioning, mpi_communicator);
 	tmp1 = present_solution;
-	VectorTools::interpolate(mapping, dof_handler, Functions::ZeroFunction<dim>(dim+1), tmp1);
+	VectorTools::interpolate(mapping, dof_handler, Functions::ZeroFunction<dim>(dim+1), tmp1);   //Zero initial solution
 	present_solution = tmp1;
 
     // Time loop.
@@ -418,16 +430,16 @@ void InsIMEX<dim>::run()
 
         // Resetting
         solution_increment = 0;
-        // Only use nonzero constraints at the very first time step (COsì i valori nei constraints non vengono modificati)
+        // Only use nonzero constraints at the very first time step (Così i valori nei constraints non vengono modificati)
         bool apply_nonzero_constraints = (time.get_timestep() == 1);
+        
         // We have to assemble the LHS for the initial two time steps:
-        // once using nonzero_constraints, once using zero_constraints,
-        // as well as the steps imediately after mesh refinement.
+        // once using nonzero_constraints, once using zero_constraints.
         bool assemble_system = (time.get_timestep() < 3);
 
         assemble(apply_nonzero_constraints, assemble_system);
 
-        auto state = solve(apply_nonzero_constraints, assemble_system);
+        auto state = solve(apply_nonzero_constraints, assemble_system, time.get_timestep());
         // Note we have to use a non-ghosted vector to do the addition.
         PETScWrappers::MPI::BlockVector tmp;
         tmp.reinit(owned_partitioning, mpi_communicator);   //We do this since present solution is a ghost vector so is read-only

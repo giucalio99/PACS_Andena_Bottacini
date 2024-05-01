@@ -67,6 +67,8 @@ template <int dim>
 class BoundaryValues : public Function<dim>
   {
   public:
+    
+    // Default constructor 
     BoundaryValues() : Function<dim>(dim + 1) {}
     
     virtual double value(const Point<dim> &p,
@@ -83,7 +85,7 @@ double BoundaryValues<dim>::value(const Point<dim> & /*p*/,
 		ExcIndexRange(component, 0, this->n_components));
 
  if (component == 0) {
-	return 0.12;      //Sopra 0.12 non runna, dice max num iterations raggiunto
+	return 1;      //Sopra 0.12 non runna, dice max num iterations raggiunto (con WireWire)
  }
 
  if (component == dim)

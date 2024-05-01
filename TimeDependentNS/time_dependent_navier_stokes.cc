@@ -242,9 +242,10 @@ Point<dim-1>  CollectorGeometry<dim>::pull_back(const Point<dim> &p) const      
   // double dist_emi_col = 0.025;
   // const double X = -r_emi-dist_emi_col;
 
+  // for naca simulation
   double X = -2.53;
+
   const Point<2> center(X,0.0);
-  //const Point<2> center1(0.0,0.0);
   SphericalManifold<2> emitter_manifold(center);
 
   const types::manifold_id collector = 2;

@@ -26,6 +26,7 @@
 #include <deal.II/lac/petsc_vector.h>
 #include <deal.II/lac/petsc_precondition.h>
 #include <deal.II/lac/petsc_solver.h>
+#include <deal.II/lac/solver_bicgstab.h>  //Se vogliamo usare bicgstab solver
 
 #include <deal.II/grid/grid_generator.h>
 #include <deal.II/grid/grid_refinement.h>
@@ -86,7 +87,7 @@ private:
   void initialize_system();
   void assemble(bool use_nonzero_constraints, bool assemble_system);
 
-  std::pair<unsigned int, double> solve(bool use_nonzero_constraints, bool assemble_system);
+  std::pair<unsigned int, double> solve(bool use_nonzero_constraints, bool assemble_system, double time_step);
   
   void output_results(const unsigned int) const;
 

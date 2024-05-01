@@ -1,0 +1,10 @@
+/home/giacomo/Documenti/PACS_Andena_Bottacini/TimeDependentNS2/build/CMakeFiles/fluid.dir
+/home/giacomo/Documenti/PACS_Andena_Bottacini/TimeDependentNS2/build/CMakeFiles/run.dir
+/home/giacomo/Documenti/PACS_Andena_Bottacini/TimeDependentNS2/build/CMakeFiles/debug.dir
+/home/giacomo/Documenti/PACS_Andena_Bottacini/TimeDependentNS2/build/CMakeFiles/release.dir
+/home/giacomo/Documenti/PACS_Andena_Bottacini/TimeDependentNS2/build/CMakeFiles/runclean.dir
+/home/giacomo/Documenti/PACS_Andena_Bottacini/TimeDependentNS2/build/CMakeFiles/distclean.dir
+/home/giacomo/Documenti/PACS_Andena_Bottacini/TimeDependentNS2/build/CMakeFiles/strip_comments.dir
+/home/giacomo/Documenti/PACS_Andena_Bottacini/TimeDependentNS2/build/CMakeFiles/info.dir
+/home/giacomo/Documenti/PACS_Andena_Bottacini/TimeDependentNS2/build/CMakeFiles/edit_cache.dir
+/home/giacomo/Documenti/PACS_Andena_Bottacini/TimeDependentNS2/build/CMakeFiles/rebuild_cache.dir
