@@ -68,7 +68,7 @@
 
   // This method create, or import, the mesh over which we perform the simulation. Moreover it sets the unique tag of the boundary
 template <int dim>
-void create_triangulation(parallel::distributed::Triangulation<dim> &triangulation)
+void create_triangulation(parallel::distributed::Triangulation<dim> &tria)
 {
 	const std::string filename = "../../../Structured_Meshes/Structured_Square.msh"; //name of the .msh file
   //const std::string filename = "../../../Mesh_Menessini/small_square.msh";
