@@ -14,4 +14,6 @@ Codici/Validation_pn_parallel/build
 Codici/Validation_pn_parallel2/build
 # Ignore build directory in step40
 Codici/STEP40/*/build
+# Ignore build directory of TDNS
+TimeDependentNS2/build/
 

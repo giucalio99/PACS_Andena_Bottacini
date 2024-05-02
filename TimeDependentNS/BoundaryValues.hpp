@@ -85,7 +85,7 @@ double BoundaryValues<dim>::value(const Point<dim> & /*p*/,
 		ExcIndexRange(component, 0, this->n_components));
 
  if (component == 0) {
-	return 1;      //Sopra 0.12 non runna, dice max num iterations raggiunto (con WireWire)
+	return 1.5;      //Sopra 0.12 non runna, dice max num iterations raggiunto (con WireWire)
  }
 
  if (component == dim)

@@ -78,8 +78,8 @@
 
       // PETScWrappers::SolverCG cg_sm(sm_control,
       //                               mass_schur->get_mpi_communicator());
-      // PETScWrappers::SolverBiCG cg_sm(sm_control);
-      PETScWrappers::SolverBicgstab cg_sm(sm_control);
+      PETScWrappers::SolverBiCG cg_sm(sm_control);
+      // PETScWrappers::SolverBicgstab cg_sm(sm_control);
 
       // PreconditionBlockJacobi works find on Sm if we do not refine the mesh.
       // Because after refine_mesh is called, zero entries will be created on
