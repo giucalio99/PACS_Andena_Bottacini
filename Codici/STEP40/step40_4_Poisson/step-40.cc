@@ -73,45 +73,10 @@
 
 // COMMENTO DI QUESTO SUB-STEP (OUR MESH) VERSO POISSON
 // per i commenti vedere step40 vanilla è scritto molto bene. in questo sub-step noi non raffiniamo la mesh
-// inoltre usiamo una nostra mesh presa in input. Da risultati identici allo step40 vanilla.
-// è stato tolto il namespece step40 e modificato il Cmakefile.txt
-
-namespace LA
-{
-#if defined(DEAL_II_WITH_PETSC) && !defined(DEAL_II_PETSC_WITH_COMPLEX) && \
-  !(defined(DEAL_II_WITH_TRILINOS) && defined(FORCE_USE_OF_TRILINOS))
-  using namespace dealii::LinearAlgebraPETSc;
-#  define USE_PETSC_LA
-#elif defined(DEAL_II_WITH_TRILINOS)
-  using namespace dealii::LinearAlgebraTrilinos;
-#else
-#  error DEAL_II_WITH_PETSC or DEAL_II_WITH_TRILINOS required
-#endif
-} // namespace LA
+// inoltre usiamo una nostra mesh presa in input. Obbiettivo: una iterazione di newton
 
 
 using namespace dealii;
-
-//#############################################################################################################################################
-
-template <int dim>
-class BoundaryValues : public Function<dim>
-{
-public:
-  virtual double value(const Point<dim> & p, const unsigned int component = 0) const override;
-};
-
-
-template <int dim>
-double BoundaryValues<dim>::value(const Point<dim> &p, const unsigned int ) const
-{
-    if (p[0] <= 0.45*L) // check the x component of the point p
-     return V_E*std::log(D/ni);
-    else
-     return V_E*std::log(-A/ni);
-}
-
-//###############################################################################################################################################
 
 template <int dim>
 class PoissonProblem
@@ -120,15 +85,16 @@ public:
 
   PoissonProblem(parallel::distributed::Triangulation<dim> &tria);
 
-  void run(const double tolerance, const unsigned int max_iter);
+  void run();
 
 private:
   
   void setup_system();
+  void initialize_current_solution();
   void assemble_system();
   void solve();
-  void set_boundary_values();
   void output_results(const unsigned int cycle);
+
 
   MPI_Comm mpi_communicator;
 
@@ -141,6 +107,7 @@ private:
   IndexSet locally_relevant_dofs;
 
   AffineConstraints<double> constraints;
+  AffineConstraints<double> zero_constraints;
 
   PETScWrappers::MPI::SparseMatrix system_matrix;
 
@@ -184,27 +151,80 @@ void PoissonProblem<dim>::setup_system()
   locally_relevant_dofs = DoFTools::extract_locally_relevant_dofs(dof_handler);
 
   // PETSC VECTORS 
-  current_solution.reinit(locally_owned_dofs, locally_relevant_dofs, mpi_communicator);
-  newton_update.reinit(locally_owned_dofs, locally_relevant_dofs, mpi_communicator);
-  system_rhs.reinit(locally_owned_dofs, mpi_communicator);
-
+  current_solution.reinit(locally_owned_dofs, locally_relevant_dofs, mpi_communicator);  //ghosted
+  newton_update.reinit(locally_owned_dofs, locally_relevant_dofs, mpi_communicator);     //ghosted
+  system_rhs.reinit(locally_owned_dofs, mpi_communicator);                               //non ghosted
+ 
   // CONSTRAINTS
   constraints.clear();
-  constraints.reinit(locally_relevant_dofs);
+  constraints.reinit(locally_relevant_dofs);    // SERVONO VERAMNETE LORO ?? i constraints normali e non nulli intendo
   VectorTools::interpolate_boundary_values(dof_handler, 1, Functions::ConstantFunction<dim>(V_E*std::log(D/ni)), constraints);
   VectorTools::interpolate_boundary_values(dof_handler, 2, Functions::ConstantFunction<dim>(-V_E*std::log(A/ni)), constraints);
+
+  // ZERO CONSTRAINTS
+  zero_constraints.clear();
+  zero_constraints.reinit(locally_relevant_dofs);
+  VectorTools::interpolate_boundary_values(dof_handler, 1, Functions::ZeroFunction<dim>(), zero_constraints);
+  VectorTools::interpolate_boundary_values(dof_handler, 2, Functions::ZeroFunction<dim>(), zero_constraints);
+  zero_constraints.close();
+
   //DoFTools::make_hanging_node_constraints(dof_handler, constraints);  // non li abbiamo
-  constraints.close();
 
   // DYNAMIC SPARSITY PATTERN    ( no .clear() sulla matrice? )
   DynamicSparsityPattern dsp(locally_relevant_dofs);
   DoFTools::make_sparsity_pattern(dof_handler, dsp, constraints, false); //noi mettavamo true
   SparsityTools::distribute_sparsity_pattern(dsp,
-                                              dof_handler.locally_owned_dofs(),
-                                              mpi_communicator,
-                                              locally_relevant_dofs);
-
+                                             dof_handler.locally_owned_dofs(),
+                                             mpi_communicator,
+                                             locally_relevant_dofs);
+  
+  system_matrix.clear();
   system_matrix.reinit(locally_owned_dofs, locally_owned_dofs, dsp,  mpi_communicator);
+
+  pcout << " End of setup_system "<< std::endl<<std::endl;
+
+}
+
+//---------------------------------------------------------------------------------------------------------------------------------------------------
+
+template <int dim>
+void PoissonProblem<dim>:: initialize_current_solution(){
+
+  //NB: the L2 norm of current solution without constraints is zero, correct (without = 0)
+  //NB: abbiamo constatato che setup_system scrive effettivamente in constraints i valori imposti
+  //    ergo in constrints ho effettivamente i valori delle BC legate ai vari dof dei processori VEDERE CARTELLA OUTPUT AFFINE CONST
+  //NB: finalmente in current solution ci sono dei valori sensati, una volta impostate le BCs ha norma L2 non banale e 
+  //    norma L_INF coerente con i valori delle BCs.  QUESTA FUNCTION FA IL SUO
+  //    unica cosa brutta l'uso di un temp vector
+ 
+  PETScWrappers::MPI::Vector temp;
+	temp.reinit(locally_owned_dofs, mpi_communicator);   //non ghosted, serve per imporre i valori delle BCs
+	temp = current_solution; //current solution here is zero by default constructor
+	  
+  std::map<types::global_dof_index, double> boundary_values;
+  
+  VectorTools::interpolate_boundary_values(dof_handler,
+                                           1,
+                                           Functions::ConstantFunction<dim>(V_E*std::log(D/ni)),
+                                           boundary_values);
+
+  VectorTools::interpolate_boundary_values(dof_handler,
+                                           2,
+                                           Functions::ConstantFunction<dim>(-V_E*std::log(A/ni)),
+                                           boundary_values);
+  
+  for (auto &boundary_value : boundary_values){
+    temp(boundary_value.first) = boundary_value.second;
+  }
+  
+  temp.compress(VectorOperation::insert); //giusto insert, add non funziona
+  current_solution = temp;
+  
+  pcout << " The L2 norm of current solution is: "<< current_solution.l2_norm()<< std::endl;
+  pcout << " The L_INF norm of current solution is: "<< current_solution.linfty_norm()<< std::endl;
+  
+  pcout << " End of initialization_current_solution "<< std::endl<<std::endl;
+
 }
 
 //---------------------------------------------------------------------------------------------------------------------------------------------------
@@ -267,43 +287,19 @@ void PoissonProblem<dim>::assemble_system()
           }
 
         cell->get_dof_indices(local_dof_indices);
-        /*constraints.distribute_local_to_global(cell_matrix,
+        zero_constraints.distribute_local_to_global(cell_matrix,
                                                cell_rhs,
                                                local_dof_indices,
                                                system_matrix,
-                                               system_rhs);*/
-        for (unsigned int i = 0; i < dofs_per_cell; ++i){
-
-            for (unsigned int j = 0; j < dofs_per_cell; ++j){
-
-              system_matrix.add(local_dof_indices[i], local_dof_indices[j], cell_matrix(i, j));
-
-            }
-
-            system_rhs(local_dof_indices[i]) += cell_rhs(i);
-          }
+                                               system_rhs);
+        
       }
 
   system_matrix.compress(VectorOperation::add);
   system_rhs.compress(VectorOperation::add);
 
-  std::map<types::global_dof_index, double> boundary_values;
 
-  VectorTools::interpolate_boundary_values(dof_handler,
-                                           1,
-                                           Functions::ZeroFunction<dim>(),
-                                           boundary_values);
-
-  VectorTools::interpolate_boundary_values(dof_handler,
-                                          2,
-                                          Functions::ZeroFunction<dim>(),
-                                          boundary_values);
-
-                                          
-  MatrixTools::apply_boundary_values(boundary_values,
-                                     system_matrix,
-                                     newton_update,
-                                     system_rhs);
+  pcout << " End of assemble_system "<< std::endl;
 }
 
 //------------------------------------------------------------------------------------------------------------------------------------------------
@@ -322,31 +318,10 @@ void PoissonProblem<dim>::solve()
 
   current_solution += newton_update;
 
+  pcout << " End of solve "<< std::endl;
+
 }
 
-//--------------------------------------------------------------------------------------------------------------------------------------------
-
-template <int dim>
-void PoissonProblem<dim>::set_boundary_values()
-{
-  std::map<types::global_dof_index, double> boundary_values;
-
-  VectorTools::interpolate_boundary_values(dof_handler,
-                                           1,
-                                           BoundaryValues<dim>(),
-                                           boundary_values);
-
-  VectorTools::interpolate_boundary_values(dof_handler,
-                                          2,
-                                          BoundaryValues<dim>(),
-                                          boundary_values); 
-
-  for (auto &boundary_value : boundary_values){
-    current_solution(boundary_value.first) = boundary_value.second;
-  }
-
-  constraints.distribute(current_solution);
-}
 
 //-----------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -370,37 +345,46 @@ void PoissonProblem<dim>::output_results(const unsigned int cycle)
   // generated, which groups the written VTU files.
   data_out.write_vtu_with_pvtu_record(
     "./", "solution", cycle, mpi_communicator, 2, 8);
+
+  pcout << " End of output_results"<< std::endl;
+
 }
 
 
 //---------------------------------------------------------------------------------------------------------------------------------------------------
 
 template <int dim>
-void PoissonProblem<dim>::run(const double tolerance, const unsigned int max_iter)
+void PoissonProblem<dim>::run()
 {
   
-  pcout << " This is the only cycle "<< std::endl;
+  pcout << " -- START ONE-CYCLE NEWTON METHOD --"<< std::endl<<std::endl<<std::endl;
 
+  pcout << "  SETUP SYSTEM "<< std::endl;
   setup_system();
-  set_boundary_values();
-
-  double residual_norm = std::numeric_limits<double>::max();
   
+  pcout << "  INITIALIZATION "<< std::endl;
+  initialize_current_solution();;
+
+  
+  double residual_norm = std::numeric_limits<double>::max();
   pcout << " Initial residual: " << residual_norm << std::endl;
- 
-  for (unsigned int inner_iteration = 0; inner_iteration < max_iter && residual_norm > tolerance; ++inner_iteration)
-    {
-      assemble_system();
-      solve();
+  
+  pcout << "  ASSEMBLE SYSTEM "<< std::endl;
+  assemble_system();
 
-      residual_norm = newton_update.linfty_norm();
+  pcout << "  SOLVE SYSTEM "<< std::endl;
+  solve();
+  
+  
+  residual_norm = newton_update.linfty_norm();
 
-      pcout << "  Residual: " << residual_norm << std::endl;
-    }
+  pcout << "  Residual: " << residual_norm << std::endl;
+  
 
   output_results(0);
-
-  pcout << std::endl;
+  
+  pcout << " -- END ONE-CYCLE NEWTON METHOD "<< std::endl;
+  
 }
 
 //-----------------------------------------------------------------------------------------------------------------------------------------------------
@@ -414,10 +398,11 @@ void create_triangulation(parallel::distributed::Triangulation<dim> &tria)
   ConditionalOStream pcout(std::cout, (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0));
 
   std::ifstream input_file(filename);
-  pcout << "Reading the mesh from " << filename << std::endl;
+  pcout <<"Reading the mesh from " << filename << std::endl;
   GridIn<2>  grid_in; //This class implements an input mechanism for grid data. It allows to read a grid structure into a triangulation object
   grid_in.attach_triangulation(tria); //we pass to grid_in our (empty) triangulation
   grid_in.read_msh(input_file); // read the msh file
+  pcout << " Grid read correctly "<< std::endl;
 
 }
   
@@ -438,7 +423,8 @@ int main(int argc, char *argv[])
       create_triangulation(tria);
 
       PoissonProblem<2> poisson_problem_2d(tria);
-      poisson_problem_2d.run(1e-3, 100);
+      poisson_problem_2d.run();
+    
     }
   catch (std::exception &exc)
     {
