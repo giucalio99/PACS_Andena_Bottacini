@@ -69,14 +69,14 @@
 #include <iostream>
 #include <limits>
 
-#include "Electrical_Constants.hpp"
+#include "Electrical_Constants.hpp"    // FUNZIONA ANCHE SE NON E NEL CMAKEFILE TXT ??
 
 // COMMENTO DI QUESTO QUARTO SUB-STEP (OUR MESH) VERSO NEWTON POISSON
 // per i commenti vedere step40 vanilla è scritto molto bene. in questo sub-step noi non raffiniamo la mesh
 // inoltre usiamo una nostra mesh presa in input. Performiamo una iterazione di newton
 
-
 using namespace dealii;
+
 
 template <int dim>
 class PoissonProblem
@@ -85,7 +85,7 @@ public:
 
   PoissonProblem(parallel::distributed::Triangulation<dim> &tria);
 
-  void run();
+  void run(unsigned int max_iter, double toll);
 
 private:
   
@@ -114,7 +114,6 @@ private:
   PETScWrappers::MPI::Vector       current_solution;  
   PETScWrappers::MPI::Vector       newton_update;     
   PETScWrappers::MPI::Vector       system_rhs;
-  
 
   ConditionalOStream pcout;
 
@@ -180,7 +179,7 @@ void PoissonProblem<dim>::setup_system()
   
   system_matrix.clear();
   system_matrix.reinit(locally_owned_dofs, locally_owned_dofs, dsp,  mpi_communicator);
-
+  
   pcout << " End of setup_system "<< std::endl<<std::endl;
 
 }
@@ -271,7 +270,10 @@ void PoissonProblem<dim>::assemble_system()
 
 
         for (unsigned int q_point = 0; q_point < n_q_points; ++q_point)
-          {
+          { 
+
+            const double doping = (fe_values.quadrature_point(q_point)[0] < L/2 ? D : -A);  // value of the doping
+            
             for (unsigned int i = 0; i < dofs_per_cell; ++i){
                   
                   // MATRIX A
@@ -282,8 +284,9 @@ void PoissonProblem<dim>::assemble_system()
                   
                   // RHS F
                   cell_rhs(i) +=  -eps_0*eps_r*old_solution_gradients[q_point]*fe_values.shape_grad(i,q_point)*fe_values.JxW(q_point) - \
-                                  q0*(ni*std::exp(old_solution[q_point]/V_E)- ni*std::exp(-old_solution[q_point]/V_E))*fe_values.shape_value(i,q_point) * fe_values.JxW(q_point);
-                                  //manca N(x)*psi
+                                  q0*(ni*std::exp(old_solution[q_point]/V_E)- ni*std::exp(-old_solution[q_point]/V_E))*fe_values.shape_value(i,q_point) * fe_values.JxW(q_point)+\
+                                  q0*doping*fe_values.shape_value(i,q_point)*fe_values.JxW(q_point); //qo*N(x) integrato
+                  
               }
           }
 
@@ -300,6 +303,7 @@ void PoissonProblem<dim>::assemble_system()
   system_rhs.compress(VectorOperation::add);
   
   pcout << " The L_INF norm of the assembled matrix is "<<system_matrix.linfty_norm() <<std::endl;
+  pcout << " The L_FROB norm of the assembled matrix is "<<system_matrix.frobenius_norm() <<std::endl<<std::endl;
 
   pcout << " The L2 norm of the assembled rhs is "<<system_rhs.l2_norm() <<std::endl;
   pcout << " The L_INF norm of the assembled rhs is "<<system_rhs.linfty_norm() <<std::endl;
@@ -316,6 +320,8 @@ void PoissonProblem<dim>::solve()
   // NB: Solve sembrerebbe funzionare, non sono sicuro su quali setting mettere e quale solver usare,
   //     ciononostante otteniamo una current solution con una normal L2 diversa( maggiore) di quella dopo l'inizializzazione (L_INF norm uguale)
   
+  double alpha = 1.0; // provare con 0.8 se non converge
+
   SolverControl sc_p(dof_handler.n_dofs(), 1e-10);     
   PETScWrappers::SparseDirectMUMPS solverMUMPS(sc_p);     
   solverMUMPS.solve(system_matrix, newton_update, system_rhs);
@@ -365,37 +371,42 @@ void PoissonProblem<dim>::output_results(const unsigned int cycle)
 //---------------------------------------------------------------------------------------------------------------------------------------------------
 
 template <int dim>
-void PoissonProblem<dim>::run()
+void PoissonProblem<dim>::run(unsigned int max_iter, double toll) // tolerance linked to the magnitude of the newton update
 {
   
-  pcout << " -- START ONE-CYCLE NEWTON METHOD --"<< std::endl<<std::endl<<std::endl;
+  unsigned int counter = 0;
+
+  pcout << " -- START NEWTON METHOD --"<< std::endl<<std::endl<<std::endl;
 
   pcout << "  SETUP SYSTEM "<< std::endl;
   setup_system();
   
   pcout << "  INITIALIZATION "<< std::endl;
-  initialize_current_solution();;
+  initialize_current_solution();
 
-  
   double residual_norm = std::numeric_limits<double>::max();
+
   pcout << " Initial residual: " << residual_norm << std::endl<<std::endl;
   
-  pcout << "  ASSEMBLE SYSTEM "<< std::endl;
-  assemble_system();
 
-  pcout << "  SOLVE SYSTEM "<< std::endl;
-  solve();
-  
-  
-  residual_norm = newton_update.linfty_norm();
+  while(counter < max_iter && residual_norm > toll){
 
-  pcout << "  Residual: " << residual_norm << std::endl;   //viene circa 0.63
-  
+    pcout << " NEWTON ITERATION NUMBER: "<< counter +1<<std::endl<<std::endl;
+    pcout << " Assemble System "<< std::endl;
+    assemble_system();
+    pcout << " Solve System"<< std::endl;
+    solve();
+    residual_norm = newton_update.l2_norm();
+    pcout << " Update Residual: "<<residual_norm<<std::endl<<std::endl;
+    counter ++;
+
+  }
+
   pcout << "  OUTPUT RESULT "<< std::endl;
 
   output_results(0);
   
-  pcout << " -- END ONE-CYCLE NEWTON METHOD "<< std::endl;
+  pcout << " -- END NEWTON METHOD -- "<< std::endl;
   
 }
 
@@ -435,7 +446,7 @@ int main(int argc, char *argv[])
       create_triangulation(tria);
 
       PoissonProblem<2> poisson_problem_2d(tria);
-      poisson_problem_2d.run();
+      poisson_problem_2d.run(1000, 1e-5);
     
     }
   catch (std::exception &exc)
