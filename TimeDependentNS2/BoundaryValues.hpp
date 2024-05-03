@@ -68,7 +68,7 @@ class BoundaryValues : public Function<dim>
   {
   public:
     
-    // Default constructor 
+    // Default constructor that initializes inlet_value to 0.0
     BoundaryValues() : Function<dim>(dim + 1), inlet_value(0.0) {}
 
     // Constructor that takes a double parameter to initialize inlet_value
@@ -89,9 +89,8 @@ double BoundaryValues<dim>::value(const Point<dim> & /*p*/,
  Assert(component < this->n_components,
 		ExcIndexRange(component, 0, this->n_components));
 
- if (component == 0) {
-	return inlet_value;      //Sopra 0.12 non runna, dice max num iterations raggiunto (con WireWire)
- }
+ if (component == 0) 
+	return inlet_value;
 
  if (component == dim)
 		return 0.;      // Boundary condition at fluid outlet

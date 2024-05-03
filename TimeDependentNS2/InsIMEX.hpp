@@ -83,12 +83,14 @@ public:
 
 private:
   void setup_dofs();
-  void make_constraints();
-  void make_constraints_td(const int);
+
+  void make_constraints_init();
+  void make_constraints_update(double time_step);
+
   void initialize_system();
   void assemble(bool use_nonzero_constraints, bool assemble_system);
 
-  std::pair<unsigned int, double> solve(bool use_nonzero_constraints, bool assemble_system);
+  std::pair<unsigned int, double> solve(bool use_nonzero_constraints, bool assemble_system, double time_step);
   
   void output_results(const unsigned int) const;
 
@@ -103,8 +105,8 @@ private:
   QGauss<dim> volume_quad_formula;
   QGauss<dim - 1> face_quad_formula;
 
-  AffineConstraints<double> zero_NS_constraints;              //Each "line" in objects of this class corresponds to one constrained degree of freedom
-  AffineConstraints<double> nonzero_NS_constraints;
+  AffineConstraints<double> initial_NS_constraints;              //Each "line" in objects of this class corresponds to one constrained degree of freedom
+  AffineConstraints<double> update_NS_constraints;
 
   BlockSparsityPattern sparsity_pattern;
   

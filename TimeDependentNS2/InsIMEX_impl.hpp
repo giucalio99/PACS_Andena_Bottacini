@@ -52,19 +52,16 @@ void InsIMEX<dim>::setup_dofs()
 
 // @sect4{InsIMEX::make_constraints}
 template <int dim>
-void InsIMEX<dim>::make_constraints()
+void InsIMEX<dim>::make_constraints_init()
 {
     // Because the equation is written in incremental form, two constraints are needed: nonzero constraint and zero constraint.
     
-    nonzero_NS_constraints.clear();               //Clear all entries of this matrix
-    zero_NS_constraints.clear();
-    nonzero_NS_constraints.reinit(locally_relevant_dofs);      //clear() the AffineConstraints object and supply an IndexSet with lines that may be constrained
-    zero_NS_constraints.reinit(locally_relevant_dofs);
+    initial_NS_constraints.clear();    //clear() the AffineConstraints object and supply an IndexSet with lines that may be constrained
+    initial_NS_constraints.reinit(locally_relevant_dofs);      
     // DoFTools::make_hanging_node_constraints(dof_handler, nonzero_NS_constraints);      //Necessary when work with not homogeneous meshes (mesh non conformi) since in this cases we have the presence of hanging nodes. We have to impose constraints also on these.
     // DoFTools::make_hanging_node_constraints(dof_handler, zero_NS_constraints);
 
-    // Apply Dirichlet boundary conditions on all boundaries except for the
-    // outlet.
+    // Apply Dirichlet boundary conditions on all boundaries except for the outlet.
     
     const FEValuesExtractors::Vector velocities(0);
     const FEValuesExtractors::Scalar vertical_velocity(1);
@@ -74,110 +71,84 @@ void InsIMEX<dim>::make_constraints()
     VectorTools::interpolate_boundary_values(dof_handler,                           
                                             0,                                      // Up and down 
                                             Functions::ZeroFunction<dim>(dim+1),    // For each degree of freedom at the boundary, its boundary value will be overwritten if its index already exists in boundary_values. Otherwise, a new entry with proper index and boundary value for this degree of freedom will be inserted into boundary_values.
-                                            nonzero_NS_constraints,
+                                            initial_NS_constraints,
                                             fe.component_mask(vertical_velocity));
     VectorTools::interpolate_boundary_values(dof_handler,
                                             3,                                      //Emitter                  
                                             Functions::ZeroFunction<dim>(dim+1),
-                                            nonzero_NS_constraints,
+                                            initial_NS_constraints,
                                             fe.component_mask(velocities));
     VectorTools::interpolate_boundary_values(dof_handler,
                                             4,                                      //Collector                                     
                                             Functions::ZeroFunction<dim>(dim+1),
-                                            nonzero_NS_constraints,
+                                            initial_NS_constraints,
                                             fe.component_mask(velocities));
     VectorTools::interpolate_boundary_values(dof_handler, 
-                                            1,                    // Inlet
-                                            BoundaryValues<dim>(), // Functions::ZeroFunction<dim>(dim+1), 
-                                            nonzero_NS_constraints, 
+                                            1,                                      // Inlet
+                                            BoundaryValues<dim>(), 
+                                            initial_NS_constraints, 
                                             fe.component_mask(velocities));
     
 
     VectorTools::interpolate_boundary_values(dof_handler,
-                                            2,                    // Outlet
-                                            Functions::ZeroFunction<dim>(dim+1),//BoundaryValues<dim>()
-                                            nonzero_NS_constraints,
+                                            2,                                     // Outlet
+                                            Functions::ZeroFunction<dim>(dim+1),
+                                            initial_NS_constraints,
                                             fe.component_mask(vertical_velocity_and_pressure));  //Vertical velocity and pressure at outlet equal to 0
 
+    initial_NS_constraints.close();         //After closing, no more entries are accepted
 
+}
 
+// @sect4{InsIMEX::make_constraints}
+template <int dim>
+void InsIMEX<dim>::make_constraints_update(double time_step)    //In input chiediamo il time step per essere più generali volendo ad esempio cambiare l'incremento nel tempo
+{
+    // Because the equation is written in incremental form, two constraints are needed: nonzero constraint and zero constraint.
+    
+    update_NS_constraints.clear();                  //clear() the AffineConstraints object and supply an IndexSet with lines that may be constrained
+    update_NS_constraints.reinit(locally_relevant_dofs);
+    // DoFTools::make_hanging_node_constraints(dof_handler, nonzero_NS_constraints);      //Necessary when work with not homogeneous meshes (mesh non conformi) since in this cases we have the presence of hanging nodes. We have to impose constraints also on these.
+    // DoFTools::make_hanging_node_constraints(dof_handler, zero_NS_constraints);
+
+    // Apply Dirichlet boundary conditions on all boundaries except for the
+    // outlet.
+    
+    const FEValuesExtractors::Vector velocities(0);
+    const FEValuesExtractors::Scalar vertical_velocity(1);
+    const FEValuesExtractors::Vector vertical_velocity_and_pressure(1);  
+
+    double inlet_value = 0.01; // We want that our velocity goes form 0.0 to 1.0 in 100 timesteps  
 
     //Zero_NS_constraints
     VectorTools::interpolate_boundary_values(dof_handler,
                                             0,
                                             Functions::ZeroFunction<dim>(dim+1),
-                                            zero_NS_constraints,
+                                            update_NS_constraints,
                                             fe.component_mask(vertical_velocity));
     VectorTools::interpolate_boundary_values(dof_handler,
                                             3,
                                             Functions::ZeroFunction<dim>(dim+1),
-                                            zero_NS_constraints,
+                                            update_NS_constraints,
                                             fe.component_mask(velocities));
     VectorTools::interpolate_boundary_values(dof_handler,
                                             4,
                                             Functions::ZeroFunction<dim>(dim+1),
-                                            zero_NS_constraints,
+                                            update_NS_constraints,
                                             fe.component_mask(velocities));
     VectorTools::interpolate_boundary_values(dof_handler,
                                             1,
-                                            Functions::ZeroFunction<dim>(dim+1),
-                                            zero_NS_constraints,
+                                            BoundaryValues<dim>(inlet_value),
+                                            update_NS_constraints,
                                             fe.component_mask(velocities));
     VectorTools::interpolate_boundary_values(dof_handler,
                                             2, 
                                             Functions::ZeroFunction<dim>(dim+1),
-                                            zero_NS_constraints,
+                                            update_NS_constraints,
                                             fe.component_mask(vertical_velocity_and_pressure));
-                                             
 
-    nonzero_NS_constraints.close();         //After closing, no more entries are accepted
-    zero_NS_constraints.close();
+    update_NS_constraints.close();
 
-}
-
-template <int dim>
-void InsIMEX<dim>::make_constraints_td(const int time_step)
-{
-    // Because the equation is written in incremental form, two constraints are needed: nonzero constraint and zero constraint.
-    
-    nonzero_NS_constraints.clear(); 
-    nonzero_NS_constraints.reinit(locally_relevant_dofs);     
-    // DoFTools::make_hanging_node_constraints(dof_handler, nonzero_NS_constraints);
-
-    const FEValuesExtractors::Vector velocities(0);
-    const FEValuesExtractors::Scalar vertical_velocity(1);
-    const FEValuesExtractors::Vector vertical_velocity_and_pressure(1);  
-
-    double inlet_value = time_step * 0.12 / 100;  //linear increasing of inlet value (from 0 in t=0, in t=50 velocity is 0.12)  
-
-    //Nonzero_NS_constraints //Assign B.C. different from zero in nonzero_constraints
-    VectorTools::interpolate_boundary_values(dof_handler,                           
-                                            0,                                      // Up and down 
-                                            Functions::ZeroFunction<dim>(dim+1),    // For each degree of freedom at the boundary, its boundary value will be overwritten if its index already exists in boundary_values. Otherwise, a new entry with proper index and boundary value for this degree of freedom will be inserted into boundary_values.
-                                            nonzero_NS_constraints,
-                                            fe.component_mask(vertical_velocity));
-    VectorTools::interpolate_boundary_values(dof_handler,
-                                            3,                                      // Emitter                  
-                                            Functions::ZeroFunction<dim>(dim+1),
-                                            nonzero_NS_constraints,
-                                            fe.component_mask(velocities));
-    VectorTools::interpolate_boundary_values(dof_handler,
-                                            4,                                      // Collector                                     
-                                            Functions::ZeroFunction<dim>(dim+1),
-                                            nonzero_NS_constraints,
-                                            fe.component_mask(velocities));
-    VectorTools::interpolate_boundary_values(dof_handler, 
-                                            1,                                      // Inlet
-                                            BoundaryValues<dim>(inlet_value),  
-                                            nonzero_NS_constraints, 
-                                            fe.component_mask(velocities));
-    VectorTools::interpolate_boundary_values(dof_handler,
-                                            2,                                      // Outlet
-                                            Functions::ZeroFunction<dim>(dim+1),
-                                            nonzero_NS_constraints,
-                                            fe.component_mask(vertical_velocity_and_pressure));  //Vertical velocity and pressure at outlet equal to 0
-
-    nonzero_NS_constraints.close(); 
 }
 
 
@@ -191,7 +162,7 @@ void InsIMEX<dim>::initialize_system()
     mass_schur.clear();
 
     BlockDynamicSparsityPattern dsp(dofs_per_block, dofs_per_block);            //This class implements an array of compressed sparsity patterns (one for velocity and one for pressure in our case) that can be used to initialize objects of type BlockSparsityPattern.
-    DoFTools::make_sparsity_pattern(dof_handler, dsp, nonzero_NS_constraints);     //Compute which entries of a matrix built on the given dof_handler may possibly be nonzero, and create a sparsity pattern (assigning it to dsp) object that represents these nonzero locations.
+    DoFTools::make_sparsity_pattern(dof_handler, dsp, initial_NS_constraints);     //Compute which entries of a matrix built on the given dof_handler may possibly be nonzero, and create a sparsity pattern (assigning it to dsp) object that represents these nonzero locations.
     sparsity_pattern.copy_from(dsp);                                            //Copy data from an object of type BlockDynamicSparsityPattern
     SparsityTools::distribute_sparsity_pattern(                    //Communicate rows in a dynamic sparsity pattern over MPI.
         dsp,                                                       //A dynamic sparsity pattern that has been built locally and for which we need to exchange entries with other processors to make sure that each processor knows all the elements of the rows of a matrix it stores and that may eventually be written to. This sparsity pattern will be changed as a result of this function: All entries in rows that belong to a different processor are sent to them and added there.
@@ -231,7 +202,7 @@ void InsIMEX<dim>::initialize_system()
 // and once for zero constraint. But we must assemble the RHS at every time
 // step.
 template <int dim>
-void InsIMEX<dim>::assemble(bool use_nonzero_constraints,
+void InsIMEX<dim>::assemble(bool use_initial_constraints,
                             bool assemble_system)
 {
     TimerOutput::Scope timer_section(timer, "Assemble system");        //Enter the given section in the timer
@@ -325,8 +296,7 @@ void InsIMEX<dim>::assemble(bool use_nonzero_constraints,
                             phi_p[i] * div_phi_u[j] +
                             gamma * div_phi_u[j] * div_phi_u[i] +
                             phi_u[i] * phi_u[j] / time.get_delta_t() +
-                            //+ current_velocity_gradients[q] * phi_u[j] * phi_u[i] +
-                            //grad_phi_u[j] * current_velocity_values[q] * phi_u[i]
+
                             phi_u[i] * (current_velocity_gradients[q] * phi_u[j]) +
                             phi_u[i] * (grad_phi_u[j] * current_velocity_values[q]) 
                             ) *
@@ -352,7 +322,7 @@ void InsIMEX<dim>::assemble(bool use_nonzero_constraints,
             cell->get_dof_indices(local_dof_indices);
 
             const AffineConstraints<double> &constraints_used =
-            use_nonzero_constraints ? nonzero_NS_constraints : zero_NS_constraints;
+            use_initial_constraints ? initial_NS_constraints : update_NS_constraints;
             if (assemble_system)
             {
                 constraints_used.distribute_local_to_global(local_matrix,             //In practice this function implements a scatter operation
@@ -389,7 +359,7 @@ void InsIMEX<dim>::assemble(bool use_nonzero_constraints,
 // preconditioner should be reset or not.
 template <int dim>
 std::pair<unsigned int, double>
-InsIMEX<dim>::solve(bool use_nonzero_constraints, bool assemble_system)
+InsIMEX<dim>::solve(bool use_initial_constraints, bool assemble_system, double time_step)
 {
     if (assemble_system)
     {
@@ -402,29 +372,37 @@ InsIMEX<dim>::solve(bool use_nonzero_constraints, bool assemble_system)
                                                         mass_matrix,
                                                         mass_schur));
     }
+    
+    // double coeff = 0.0 ;   // to avoid to have a tolerance too small
+    // if (time_step < 4) {
+    //     coeff = 1e-5;
+    // } else if (time_step >= 4 && time_step < 10) {
+    //     coeff = 1e-3;
+    // } else {
+    //     coeff = 1e-2;
+    // }
 
-    pcout << "system_matrix.m is " << system_matrix.m() << std::endl;
-    // SolverControl solver_control(                                         //Used by iterative methods to determine whether the iteration should be continued
-    // system_matrix.m(), 1e-8 * system_rhs.l2_norm(), true);
+    double coeff = 1e-5;
+
     SolverControl solver_control(                                         //Used by iterative methods to determine whether the iteration should be continued
-         50000, 1e-8, true);
+    system_matrix.m(), coeff * system_rhs.l2_norm(), true);
+
     // Because PETScWrappers::SolverGMRES only accepts preconditioner
     // derived from PETScWrappers::PreconditionBase,
     // we use dealii SolverFGMRES.
-    GrowingVectorMemory<PETScWrappers::MPI::BlockVector> vector_memory;
-    SolverFGMRES<PETScWrappers::MPI::BlockVector> gmres(solver_control,
-                                                        vector_memory);
-    // SolverBicgstab<PETScWrappers::MPI::BlockVector> bicg(solver_control);
+    // // GrowingVectorMemory<PETScWrappers::MPI::BlockVector> vector_memory;
+    // // SolverFGMRES<PETScWrappers::MPI::BlockVector> gmres(solver_control,
+    // //                                                     vector_memory);
+    SolverBicgstab<PETScWrappers::MPI::BlockVector> bicg(solver_control);
 
-    pcout << "Max iterations set to: " << solver_control.max_steps() << std::endl;
-
-    nonzero_NS_constraints.set_zero(solution_increment);
+    pcout << "system_matrix frob norm is " << system_matrix.frobenius_norm() << std::endl;
+    pcout << "system_rhs l2 norm is " << system_rhs.l2_norm() << std::endl;
     // The solution vector must be non-ghosted
-    gmres.solve(system_matrix, solution_increment, system_rhs, *preconditioner);
+    bicg.solve(system_matrix, solution_increment, system_rhs, *preconditioner);
 
     const AffineConstraints<double> &constraints_used =
-    use_nonzero_constraints ? nonzero_NS_constraints : zero_NS_constraints;
-    // constraints_used.distribute(solution_increment);
+    use_initial_constraints ? initial_NS_constraints : update_NS_constraints;
+    constraints_used.distribute(solution_increment);
 
     return {solver_control.last_step(), solver_control.last_value()};
 }
@@ -441,8 +419,7 @@ void InsIMEX<dim>::run()
 
     triangulation.refine_global(0);
     setup_dofs();
-    // make_constraints();
-    make_constraints_td(0.0);
+    make_constraints_init();
     initialize_system();
 
     //Initialize the present_solution
@@ -468,28 +445,26 @@ void InsIMEX<dim>::run()
             << "Time step = " << time.get_timestep()
             << ", at t = " << std::scientific << time.current() << std::endl;
 
-        // Changing of the TD constraints
-        make_constraints_td(time.get_timestep());
-
         // Resetting
         solution_increment = 0;
         // Only use nonzero constraints at the very first time step (Così i valori nei constraints non vengono modificati)
-        // bool apply_nonzero_constraints = (time.get_timestep() == 1);
-        bool apply_nonzero_constraints = true;
+        bool apply_initial_constraints = false;
+        
         // We have to assemble the LHS for the initial two time steps:
         // once using nonzero_constraints, once using zero_constraints.
-        // bool assemble_system = (time.get_timestep() < 3);
         bool assemble_system = true;
+        // bool assemble_system = true;
 
-        assemble(apply_nonzero_constraints, assemble_system);
+        make_constraints_update(time.get_timestep());
 
-        auto state = solve(apply_nonzero_constraints, assemble_system);
+        assemble(apply_initial_constraints, assemble_system);
+
+        auto state = solve(apply_initial_constraints, assemble_system, time.get_timestep());
         // Note we have to use a non-ghosted vector to do the addition.
         PETScWrappers::MPI::BlockVector tmp;
         tmp.reinit(owned_partitioning, mpi_communicator);   //We do this since present solution is a ghost vector so is read-only
         tmp = present_solution;
         tmp += solution_increment;
-        nonzero_NS_constraints.distribute(tmp);
         present_solution = tmp;
         pcout << std::scientific << std::left << " GMRES_ITR = " << std::setw(3)
             << state.first << " GMRES_RES = " << state.second << std::endl;

@@ -84,9 +84,8 @@ double BoundaryValues<dim>::value(const Point<dim> & /*p*/,
  Assert(component < this->n_components,
 		ExcIndexRange(component, 0, this->n_components));
 
- if (component == 0) {
-	return 1.5;      //Sopra 0.12 non runna, dice max num iterations raggiunto (con WireWire)
- }
+ if (component == 0) 
+	return 1.5;
 
  if (component == dim)
 		return 0.;      // Boundary condition at fluid outlet

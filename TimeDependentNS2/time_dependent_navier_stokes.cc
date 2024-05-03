@@ -222,8 +222,8 @@ Point<dim-1>  CollectorGeometry<dim>::pull_back(const Point<dim> &p) const      
 
  void create_triangulation(parallel::distributed::Triangulation<2> &tria, const MyDataStruct s_data)
 { 
-  const std::string filename = "../../Structured_Meshes/coarse_WW.msh";
-  // const std::string filename = "../../Structured_Meshes/structured_naca.msh";
+  // const std::string filename = "../../Structured_Meshes/coarse_WW.msh";
+  const std::string filename = "../../Structured_Meshes/structured_naca_2.msh";
   cout << "Reading from " << filename << std::endl;
   std::ifstream input_file(filename);
   GridIn<2>       grid_in;
@@ -237,19 +237,21 @@ Point<dim-1>  CollectorGeometry<dim>::pull_back(const Point<dim> &p) const      
   const double X = -re-g; // [m] emitter center */
 
   // for wire wire simulation
-  double r_col = 1e-3;
-  double r_emi = 30e-5;
-  double dist_emi_col = 0.025;
-  const double X = -r_emi-dist_emi_col;
+  // double r_col = 1e-3;
+  // double r_emi = 30e-5;
+  // double dist_emi_col = 0.025;
+  // const double X = -r_emi-dist_emi_col;
 
-  // double X = -2.53;
+  // for naca simulation
+  double X = -2.53;
+
   const Point<2> center(X,0.0);
   SphericalManifold<2> emitter_manifold(center);
 
   const types::manifold_id collector = 2;
-  // CollectorGeometry<2> collector_manifold; 
-  const Point<2> center2(r_col,0.0);
-  SphericalManifold<2> collector_manifold(center2);               
+  CollectorGeometry<2> collector_manifold; 
+  // const Point<2> center2(r_col,0.0);
+  // SphericalManifold<2> collector_manifold(center2);               
 
   tria.set_all_manifold_ids_on_boundary(1, emitter);
   tria.set_manifold(emitter, emitter_manifold);
