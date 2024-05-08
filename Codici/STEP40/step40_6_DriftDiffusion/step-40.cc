@@ -70,44 +70,42 @@
 #include <limits>
 
 #include "Electrical_Constants.hpp"    // FUNZIONA ANCHE SE NON E NEL CMAKEFILE TXT ??
+#include "Electrical_Values.hpp"
 
-// COMMENTO DI QUESTO SESTO SUB-STEP
+// COMMENTO DI QUESTO QUINTO SUB-STEP (OUR MESH) VERSO NEWTON POISSON
 // per i commenti vedere step40 vanilla è scritto molto bene. in questo sub-step noi non raffiniamo la mesh
-// inoltre usiamo una nostra mesh presa in input. Performiamo tante iterazioni di newton e risolviamo DriftDiffusion
+// inoltre usiamo una nostra mesh presa in input. Performiamo tante iterazioni di newton ma non risolviamo
+// DriftDiffusion
 
 using namespace dealii;
 
 
 template <int dim>
-class DriftDiffusion
+class PoissonProblem
 {
 public:
 
-  DriftDiffusion(parallel::distributed::Triangulation<dim> &tria);
+  PoissonProblem(parallel::distributed::Triangulation<dim> &tria);
 
-  void run(const unsigned int max_iter_newton,
-           const double toll_newton,
-           const unsigned int max_iter_drift_diffusion,
-           const double toll_drift_diffusion); 
+  void run(const unsigned int max_iter, const double toll); // we pass to run the tolerance and the max number of iterations for newton
 
 private:
   
-  void setup_poisson_newton();
-  void setup_drift_diffusion();
+  void setup_system(); 
 
-  void initialize_current_potential();
-  void initialize_current_electron_density();
-  void initialize_current_hole_density();     //oppure ragionare con le SlotBoom variables ?
+  void initialize_current_solution();
+  void compute_densities();
 
-  void assemble_newton_system();
-  void assemble_electron_system();
-  void assemble_hole_system();
+  void assemble_laplace_matrix();
+  void assemble_mass_matrix();
+  //void assemble_system(); vecchio con weak form
+  void assemble_system_matrix();
 
-  void solve_newton_system();
-  void solve_electron_system();
-  void solve_hole_system();
+  void solve();
+  void clumping();
 
-  void output_results(const unsigned int cycle); // cicli di drift diffusion
+  void output_results(const unsigned int cycle);
+
 
   MPI_Comm mpi_communicator;
 
@@ -119,25 +117,20 @@ private:
   IndexSet locally_owned_dofs;
   IndexSet locally_relevant_dofs;
 
+  //AffineConstraints<double> constraints;       non penso che servano, in effetti se la commenti in step40-4 stessa soluzione con e senza
+  AffineConstraints<double> zero_constraints;
 
-  AffineConstraints<double> zero_potential_constraints;
-  AffineConstraints<double> electron_constraints;
-  AffineConstraints<double> hole_constraints;
-  
+  PETScWrappers::MPI::SparseMatrix system_matrix;
+  PETScWrappers::MPI::SparseMatrix laplace_matrix;
+  PETScWrappers::MPI::SparseMatrix mass_matrix;
+  PETScWrappers::MPI::SparseMatrix density_matrix;
 
-  PETScWrappers::MPI::SparseMatrix  system_poisson_matrix;
-  PETScWrappers::MPI::SparseMatrix  system_electron_matrix;
-  PETScWrappers::MPI::SparseMatrix  system_hole_matrix;
+  PETScWrappers::MPI::Vector       current_solution;  
+  PETScWrappers::MPI::Vector       newton_update;     
+  PETScWrappers::MPI::Vector       system_rhs;
 
-  PETScWrappers::MPI::Vector        current_potential;  
-  PETScWrappers::MPI::Vector        newton_potential_update;     
-  PETScWrappers::MPI::Vector        system_poisson_rhs;
-
-  PETScWrappers::MPI::Vector        current_electron_density; //oppure Slotboom?
-  PETScWrappers::MPI::Vector        system_electron_rhs;
-
-  PETScWrappers::MPI::Vector        current_hole_density;
-  PETScWrappers::MPI::Vector        system_hole_rhs;
+  PETScWrappers::MPI::Vector       electron_density;
+  PETScWrappers::MPI::Vector       hole_density;
 
   ConditionalOStream pcout;
 
@@ -146,7 +139,7 @@ private:
 //----------------------------------------------------------------------------------------------------------------------------------------------
 
 template <int dim>
-DriftDiffusion<dim>::PoissonProblem(parallel::distributed::Triangulation<dim> &tria)
+PoissonProblem<dim>::PoissonProblem(parallel::distributed::Triangulation<dim> &tria)
   : mpi_communicator(MPI_COMM_WORLD)
   , triangulation(tria)
   , fe(1)
@@ -157,7 +150,7 @@ DriftDiffusion<dim>::PoissonProblem(parallel::distributed::Triangulation<dim> &t
 //--------------------------------------------------------------------------------------------------------------------------------------------------
 
 template <int dim>
-void DriftDiffusion<dim>::setup_system()
+void PoissonProblem<dim>::setup_system()
 {
 
   dof_handler.distribute_dofs(fe);
@@ -172,10 +165,13 @@ void DriftDiffusion<dim>::setup_system()
   locally_owned_dofs = dof_handler.locally_owned_dofs();
   locally_relevant_dofs = DoFTools::extract_locally_relevant_dofs(dof_handler);
 
-  // PETSC VECTORS 
+  // PETSC VECTORS DECLARATIONS 
   current_solution.reinit(locally_owned_dofs, locally_relevant_dofs, mpi_communicator);  //ghosted
-  newton_update.reinit(locally_owned_dofs, locally_relevant_dofs, mpi_communicator);     //ghosted
+  newton_update.reinit(locally_owned_dofs, mpi_communicator);                            //non ghosted
   system_rhs.reinit(locally_owned_dofs, mpi_communicator);                               //non ghosted
+
+  electron_density.reinit(locally_owned_dofs, locally_relevant_dofs, mpi_communicator);  // ghosted
+  hole_density.reinit(locally_owned_dofs, locally_relevant_dofs, mpi_communicator);      // ghosted
  
   // CONSTRAINTS 
   /*
@@ -184,7 +180,7 @@ void DriftDiffusion<dim>::setup_system()
   VectorTools::interpolate_boundary_values(dof_handler, 1, Functions::ConstantFunction<dim>(V_TH*std::log(D/ni)), constraints);
   VectorTools::interpolate_boundary_values(dof_handler, 2, Functions::ConstantFunction<dim>(-V_TH*std::log(A/ni)), constraints);
   */
-  // ZERO CONSTRAINTS
+  // ZERO CONSTRAINTS FOR NEWTON
   zero_constraints.clear();
   zero_constraints.reinit(locally_relevant_dofs);
   VectorTools::interpolate_boundary_values(dof_handler, 1, Functions::ZeroFunction<dim>(), zero_constraints);
@@ -200,9 +196,19 @@ void DriftDiffusion<dim>::setup_system()
                                              dof_handler.locally_owned_dofs(),
                                              mpi_communicator,
                                              locally_relevant_dofs);
+
   
-  system_matrix.clear();
+  system_matrix.clear(); // store the matrix that will be solved in the newton iterations
   system_matrix.reinit(locally_owned_dofs, locally_owned_dofs, dsp,  mpi_communicator);
+
+  laplace_matrix.clear(); //store laplace matrix
+  laplace_matrix.reinit(locally_owned_dofs, locally_owned_dofs, dsp,  mpi_communicator);
+
+  mass_matrix.clear();  //store mass matrix
+  mass_matrix.reinit(locally_owned_dofs, locally_owned_dofs, dsp,  mpi_communicator);
+
+  density_matrix.clear(); // store the term: M(n+p)q0/V_TH
+  density_matrix.reinit(locally_owned_dofs, locally_owned_dofs, dsp,  mpi_communicator);
   
   pcout << " End of setup_system "<< std::endl<<std::endl;
 
@@ -211,11 +217,11 @@ void DriftDiffusion<dim>::setup_system()
 //---------------------------------------------------------------------------------------------------------------------------------------------------
 
 template <int dim>
-void DriftDiffusion<dim>:: initialize_current_solution(){
+void PoissonProblem<dim>:: initialize_current_solution(){
 
   //NB: the L2 norm of current solution without constraints is zero, it's correct (without = 0).
   //NB: abbiamo constatato che setup_system scrive effettivamente in constraints i valori imposti
-  //    ergo in constrints ho effettivamente i valori delle BC legate ai vari dof dei processori VEDERE CARTELLA OUTPUT AFFINE CONST.
+  //    ergo in constrints ho effettivamente i valori delle BC legate ai vari dof dei processori VEDERE CARTELLA OUTPUT AFFINE CONST STEP PRECEDENTE.
   //    Ciononostante noi poi non usiamo constraints per imporre le boundary conditions
   //NB: finalmente in current solution ci sono dei valori sensati, una volta impostate le BCs ha norma L2 non banale e 
   //    norma L_INF coerente con i valori delle BCs.  QUESTA FUNCTION FA IL SUO
@@ -249,111 +255,280 @@ void DriftDiffusion<dim>:: initialize_current_solution(){
   
   pcout << " End of initialization_current_solution "<< std::endl<<std::endl;
 
+
 }
-
-//---------------------------------------------------------------------------------------------------------------------------------------------------
-
-// ATTENZIONE IN TEORIA QUA C'E' QUALCOSA CHE NON VA DAL PUNTO DI VISTA FISICO, VEDERE CONTI , VEDERE CELL RHS
-// STIAMO USANDO NODI DI QUADRATURA DI GAUSS
-
+//-------------------------------------------------------------------------------------------------------------------------------------------------
 template <int dim>
-void DriftDiffusion<dim>::assemble_system()
+void PoissonProblem<dim>:: compute_densities(){   
+  
+  // in this function we compute the densities of electrons and holes starting from current solution that is the potential
+
+  PETScWrappers::MPI::Vector temp1;
+  PETScWrappers::MPI::Vector temp2;
+  
+	temp1.reinit(locally_owned_dofs, mpi_communicator);
+  temp2.reinit(locally_owned_dofs, mpi_communicator);
+  
+	temp1 = current_solution;
+  temp2 = current_solution;
+  
+  //double check = 0;
+
+  // Get the local indices
+  const IndexSet& local_elements = temp1.locally_owned_elements();
+  
+  for (const auto& i : local_elements){ 
+
+    temp1[i] = ni*std::exp(temp1[i]/V_TH); //electrons
+    temp2[i] = ni*std::exp(-temp2[i]/V_TH);//holes
+    
+    //check = temp1[i]*temp2[i]; deve essere 10^20 --> lo stampa giusto
+    //pcout << "check densità: " <<check << std::endl;
+  }
+  
+  // Make sure to have updated ghost values to synchronize across MPI processes
+  temp1.update_ghost_values();
+  temp2.update_ghost_values();
+
+
+  temp1.compress(VectorOperation::insert);
+  temp2.compress(VectorOperation::insert);
+  
+  electron_density = temp1;
+  hole_density = temp2;
+  
+  pcout << " The L2 norm of electorn density is: "<< electron_density.l2_norm()<< std::endl;
+  pcout << " The L_INF norm of electron density is: "<< electron_density.linfty_norm()<< std::endl;
+
+  pcout << " The L2 norm of hole density is: "<< hole_density.l2_norm()<< std::endl;
+  pcout << " The L_INF norm of hole density is: "<< hole_density.linfty_norm()<< std::endl;
+
+  pcout << " End of compute densities "<< std::endl<<std::endl;
+
+}
+//-----------------------------------------------------------------------------------------------------------------------------------------------
+template <int dim>
+void PoissonProblem<dim>::assemble_laplace_matrix()
 {
+	const QTrapezoid<dim> quadrature_formula;
 
-  const QGauss<dim> quadrature_formula(fe.degree + 1);
-  
-  system_matrix = 0;
-  system_rhs    = 0;
+	laplace_matrix = 0;
 
-  FEValues<dim> fe_values(fe,
-                          quadrature_formula,
-                          update_values | update_gradients |
-                          update_quadrature_points | update_JxW_values);
+	FEValues<dim> fe_values(fe,
+							quadrature_formula,
+							update_values | update_gradients |
+							update_quadrature_points | update_JxW_values);
 
+	const unsigned int dofs_per_cell = fe.n_dofs_per_cell();
+	const unsigned int n_q_points    = quadrature_formula.size();
 
-  const unsigned int dofs_per_cell = fe.n_dofs_per_cell();
-  const unsigned int n_q_points    = quadrature_formula.size();
+	FullMatrix<double> cell_matrix(dofs_per_cell, dofs_per_cell);
 
-  FullMatrix<double> cell_matrix(dofs_per_cell, dofs_per_cell);
-  Vector<double>     cell_rhs(dofs_per_cell);
-  
-  std::vector<double> old_solution(n_q_points);
-  std::vector<Tensor<1, dim>> old_solution_gradients(n_q_points);
+	std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
 
-  std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
-
-
-  for (const auto &cell : dof_handler.active_cell_iterators())
-    if (cell->is_locally_owned())
-      {
-        cell_matrix = 0.;
-        cell_rhs    = 0.;
+	for (const auto &cell : dof_handler.active_cell_iterators()){
+	  if (cell->is_locally_owned()){
+		    cell_matrix = 0.;
 
         fe_values.reinit(cell);
 
-        fe_values.get_function_gradients(current_solution, old_solution_gradients);
-        fe_values.get_function_values(current_solution, old_solution);
-
-
         for (unsigned int q_point = 0; q_point < n_q_points; ++q_point)
-          { 
-
-            const double doping = (fe_values.quadrature_point(q_point)[0] < L/2 ? D : -A);  // value of the doping
-            
-            for (unsigned int i = 0; i < dofs_per_cell; ++i){
-                  
-                  // MATRIX A
-                  for (unsigned int j = 0; j < dofs_per_cell; ++j){
-                    cell_matrix(i, j) += eps_0*eps_r*fe_values.shape_grad(i, q_point) * fe_values.shape_grad(j, q_point) * fe_values.JxW(q_point) + \
-                                        (q0/V_TH)*(ni*std::exp(old_solution[q_point]/V_TH) + ni*std::exp(-old_solution[q_point]/V_TH))*fe_values.shape_value(i, q_point) * fe_values.shape_value(j, q_point) * fe_values.JxW(q_point);
-                  }             
-                  
-                  // RHS F
-                  cell_rhs(i) +=  -eps_0*eps_r*old_solution_gradients[q_point]*fe_values.shape_grad(i,q_point)*fe_values.JxW(q_point) - \
-                                  q0*(ni*std::exp(old_solution[q_point]/V_TH)- ni*std::exp(-old_solution[q_point]/V_TH))*fe_values.shape_value(i,q_point) * fe_values.JxW(q_point)+\
-                                  q0*doping*fe_values.shape_value(i,q_point)*fe_values.JxW(q_point); //qo*N(x) integrato
-                  
-              }
+          {
+          for (unsigned int i = 0; i < dofs_per_cell; ++i)
+            {
+            for (unsigned int j = 0; j < dofs_per_cell; ++j)
+              cell_matrix(i, j) += fe_values.shape_grad(i, q_point) * fe_values.shape_grad(j, q_point) * fe_values.JxW(q_point);
+            }
           }
 
         cell->get_dof_indices(local_dof_indices);
         zero_constraints.distribute_local_to_global(cell_matrix,
-                                               cell_rhs,
-                                               local_dof_indices,
-                                               system_matrix,
-                                               system_rhs);
-        
-      }
+                                                    local_dof_indices,
+                                                    laplace_matrix);
+		  }
+  }
 
-  system_matrix.compress(VectorOperation::add);
-  system_rhs.compress(VectorOperation::add);
+laplace_matrix.compress(VectorOperation::add);
+
+pcout << " The L_INF norm of the laplace matrix is "<<laplace_matrix.linfty_norm() <<std::endl;
+pcout << " The L_FROB norm of the laplace matrix is "<<laplace_matrix.frobenius_norm() <<std::endl<<std::endl;
+pcout << " End of Assembling Laplce matrix "<< std::endl<<std::endl;
+}
+
+//---------------------------------------------------------------------------------------------------------------------------------------------------
+
+template <int dim>
+void PoissonProblem<dim>::assemble_mass_matrix()
+{
+	const QTrapezoid<dim> quadrature_formula;
+
+	mass_matrix = 0;
+
+	FEValues<dim> fe_values(fe,
+							quadrature_formula,
+							update_values | update_gradients |
+							update_quadrature_points | update_JxW_values);
+
+	const unsigned int dofs_per_cell = fe.n_dofs_per_cell();
+	const unsigned int n_q_points    = quadrature_formula.size();
+
+	FullMatrix<double> cell_matrix(dofs_per_cell, dofs_per_cell);
+
+	std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
+
+	for (const auto &cell : dof_handler.active_cell_iterators()){
+	  if (cell->is_locally_owned())
+		{
+		cell_matrix = 0.;
+
+		fe_values.reinit(cell);
+
+		for (unsigned int q_point = 0; q_point < n_q_points; ++q_point)
+			{
+			for (unsigned int i = 0; i < dofs_per_cell; ++i)
+				{
+				for (unsigned int j = 0; j < dofs_per_cell; ++j)
+					cell_matrix(i, j) += fe_values.shape_value(i, q_point) * fe_values.shape_value(j, q_point) * fe_values.JxW(q_point);
+				}
+			}
+
+		cell->get_dof_indices(local_dof_indices);
+		zero_constraints.distribute_local_to_global(cell_matrix,
+												                        local_dof_indices,
+												                        mass_matrix );
+		}
+  }
+
+	mass_matrix.compress(VectorOperation::add);
+  pcout << " The L_INF norm of the mass matrix is "<<mass_matrix.linfty_norm() <<std::endl;
+  pcout << " The L_FROB norm of the mass matrix is "<<mass_matrix.frobenius_norm() <<std::endl<<std::endl;
+  pcout << " End of Assembling Mass matrix "<< std::endl<<std::endl;
+
+}
+
+//-------------------------------------------------------------------------------------------------------------------------------------------------------
+
+template <int dim>
+void PoissonProblem<dim>::assemble_system_matrix()
+{
+  //BUILDING SYSTEM MATRIX
+
+  // initialize both matrices 
+  system_matrix = 0;
+  density_matrix = 0;
+  
+  PETScWrappers::MPI::Vector temp_elec; //temporary non-ghosted vector that stores electorn_density
+  PETScWrappers::MPI::Vector temp_hole; //temporary non-ghosted vector that stores hole_density
+  
+	temp_elec.reinit(locally_owned_dofs, mpi_communicator);
+  temp_hole.reinit(locally_owned_dofs, mpi_communicator);
+
+  temp_elec = electron_density;
+  temp_hole = hole_density;
+
+  double new_value = 0;
+  
+  // generate the term:  (n+p)*MASS_MAT   lumped version stored in density_matrix
+
+  for (auto iter = locally_owned_dofs.begin(); iter != locally_owned_dofs.end(); ++iter){ 
+
+    new_value = mass_matrix(*iter, *iter) * (temp_elec[*iter] + temp_hole[*iter]);
+
+    density_matrix.set(*iter,*iter,new_value);
+
+  }
+  
+  density_matrix.compress(VectorOperation::insert);
+  
+  pcout << " The L_INF norm of the density matrix is "<<density_matrix.linfty_norm() <<std::endl;
+  pcout << " The L_FROB norm of the density matrix is "<<density_matrix.frobenius_norm() <<std::endl<<std::endl;
+
+  system_matrix.add(eps_r * eps_0, laplace_matrix); //ho checkato che passi giusto.  This term is: SYS_MAT = SYS_MAT +  eps*A
+
+  system_matrix.add(q0 / V_TH, density_matrix);   // SYS_MAT = SYS_MAT + q0/V_TH * (n+p)*MASS_MAT
+
   
   pcout << " The L_INF norm of the assembled matrix is "<<system_matrix.linfty_norm() <<std::endl;
   pcout << " The L_FROB norm of the assembled matrix is "<<system_matrix.frobenius_norm() <<std::endl<<std::endl;
 
-  pcout << " The L2 norm of the assembled rhs is "<<system_rhs.l2_norm() <<std::endl;
-  pcout << " The L_INF norm of the assembled rhs is "<<system_rhs.linfty_norm() <<std::endl;
+  
+  // BUILDING SYSTEM RHS
+  system_rhs = 0;
 
-  pcout << " End of assemble_system "<< std::endl<<std::endl;
+  PETScWrappers::MPI::Vector temp;
+  PETScWrappers::MPI::Vector doping;     //store the term N, that is 1e+22 on the left side and 1e-22 on the right
+  PETScWrappers::MPI::Vector temp_solution;
+  
+	temp.reinit(locally_owned_dofs, mpi_communicator);
+  doping.reinit(locally_owned_dofs, mpi_communicator);
+  temp_solution.reinit(locally_owned_dofs, mpi_communicator);
+  
+  doping = 0;
+  temp = 0;
+
+  MappingQ1<dim> mapping;
+
+  VectorTools::interpolate(mapping, dof_handler, DopingValues<dim>(), doping); // We interpolate the previusly created vector with the initial values of Doping provided by DopingValues
+
+  doping -= temp_hole;
+  doping += temp_elec;
+
+  // basically: temp = (n -p -N)
+
+  mass_matrix.vmult(temp,doping);  // temp = MASS*(n-p-N)
+
+  system_rhs.add(-q0, temp);     // SYS_RHS = -q0*MASS*(n-p-N)
+
+  // temp_solution = current_solution;            // temp_solution = phi 
+
+  laplace_matrix.vmult(temp, current_solution); // temp = A*phi
+
+  system_rhs.add(- eps_r * eps_0, temp);    //SYS_RHS = SYS_RHS - eps*A*phi
+
+  zero_constraints.distribute(system_rhs);
+
+
 }
-
 //------------------------------------------------------------------------------------------------------------------------------------------------
 
 template <int dim>
-void DriftDiffusion<dim>::solve()
+void PoissonProblem<dim>::solve()
 {
   // NB: Assemble funziona e riempie con elementi dell'ordine di 1e-10 sia la matrice che il rhs del system
   // NB: Solve sembrerebbe funzionare, non sono sicuro su quali setting mettere e quale solver usare,
   //     ciononostante otteniamo una current solution con una normal L2 diversa( maggiore) di quella dopo l'inizializzazione (L_INF norm uguale)
   
-  
   SolverControl sc_p(dof_handler.n_dofs(), 1e-10);     
   PETScWrappers::SparseDirectMUMPS solverMUMPS(sc_p);     
   solverMUMPS.solve(system_matrix, newton_update, system_rhs);
+
+  //CLUMPING
+  double result=0;
   
-  PETScWrappers::MPI::Vector temp(locally_owned_dofs, mpi_communicator);
+  for (auto iter = locally_owned_dofs.begin(); iter != locally_owned_dofs.end(); ++iter){ 
+  
+  if (newton_update[*iter] < -V_TH) {
+    result = -V_TH;
+  } else if (newton_update[*iter] > V_TH) {
+    result = V_TH;
+  } else {
+    result = newton_update[*iter];
+  }
+
+  newton_update[*iter] = result;
+
+  }
+
+  newton_update.compress(VectorOperation::insert); 
+  zero_constraints.distribute(newton_update);
+  
+  PETScWrappers::MPI::Vector temp;
+  temp.reinit(locally_owned_dofs, mpi_communicator);
+
+
   temp = current_solution;
-  temp += newton_update;   // per adesso noi aggiorniamo cosi: phi_k+1 = phi_k + a * delta_phi. dove a =1, ma è una scelta
+  temp.add(0.8, newton_update);
+  //temp += newton_update;   // per adesso noi aggiorniamo cosi: phi_k+1 = phi_k + a * delta_phi. dove a =1, ma è una scelta
   current_solution = temp;
 
   pcout << "L2 norm of the current solution: " << current_solution.l2_norm() << std::endl;
@@ -363,16 +538,18 @@ void DriftDiffusion<dim>::solve()
   
 }
 
-
 //-----------------------------------------------------------------------------------------------------------------------------------------------------
 
 template <int dim>
-void DriftDiffusion<dim>::output_results(const unsigned int cycle)
+void PoissonProblem<dim>::output_results(const unsigned int cycle)
 {
 
   DataOut<dim> data_out;
   data_out.attach_dof_handler(dof_handler);
   data_out.add_data_vector(current_solution, "phi");
+  data_out.add_data_vector(electron_density, "n");
+  data_out.add_data_vector(hole_density, "p");
+  data_out.add_data_vector(newton_update, "d_phi");
 
   Vector<float> subdomain(triangulation.n_active_cells());
   for (unsigned int i = 0; i < subdomain.size(); ++i)
@@ -388,14 +565,10 @@ void DriftDiffusion<dim>::output_results(const unsigned int cycle)
 
 }
 
-
 //---------------------------------------------------------------------------------------------------------------------------------------------------
 
 template <int dim>
-void DriftDiffusion<dim>::run(const unsigned int max_iter_newton,
-                              const double toll_newton,
-                              const unsigned int max_iter_drift_diffusion,
-                              const double toll_drift_diffusion) // tolerance linked to the magnitude of the newton update
+void PoissonProblem<dim>::run(const unsigned int max_iter, const double toll) // tolerance linked to the magnitude of the newton update
 {
   
   unsigned int counter = 0; // it keeps track of newton iter
@@ -405,26 +578,35 @@ void DriftDiffusion<dim>::run(const unsigned int max_iter_newton,
   pcout << "  SETUP SYSTEM "<< std::endl;
   setup_system();
   
-  pcout << "  INITIALIZATION "<< std::endl;
+  pcout << "  INITIALIZATION POTENTIAL AND DENSITIES "<< std::endl;
   initialize_current_solution();
+  compute_densities();
+  
+  pcout << "  BUILD LAPLACE - MASS MATRICES "<< std::endl;
+  assemble_laplace_matrix();
+  assemble_mass_matrix();
 
-  double residual_norm = std::numeric_limits<double>::max();
+  double increment_norm = std::numeric_limits<double>::max(); // FIN QUI CORRETTO, VISTO SU PARAVIEW CHE LE BC SONO RISPETTATE E IL POTENZIALE E GIUSTO
 
-  pcout << " Initial residual: " << residual_norm << std::endl<<std::endl;
+  pcout << " Initial Increment Norm: " << increment_norm << std::endl<<std::endl;
   
 
-  while(counter < max_iter && residual_norm > toll){
+  while(counter < max_iter && increment_norm > toll){
 
     pcout << " NEWTON ITERATION NUMBER: "<< counter +1<<std::endl<<std::endl;
-    pcout << " Assemble System "<< std::endl;
-    assemble_system();
-    pcout << " Solve System"<< std::endl;
-    solve();
-    residual_norm = newton_update.l2_norm();
-    pcout << " Update Residual: "<<residual_norm<<std::endl<<std::endl;
-    counter ++;
+    pcout << " Assemble System Matrix"<< std::endl;
 
+    assemble_system_matrix();
+    pcout << " Solve System"<< std::endl;
+    solve(); // dentro c'e anche il clamping
+    compute_densities();
+  
+    increment_norm = newton_update.l2_norm();
+    pcout << " Update Increment: "<<increment_norm<<std::endl<<std::endl;
+    counter ++;
   }
+  
+  output_results(counter);
 
   if(counter == max_iter){
     pcout<< " ATTENTION! YOU REACH MAX NUMBER OF ITERATIONS!"<<std::endl;
@@ -432,8 +614,6 @@ void DriftDiffusion<dim>::run(const unsigned int max_iter_newton,
 
   pcout << "  OUTPUT RESULT "<< std::endl;
 
-  output_results(0);
-  
   pcout << " -- END NEWTON METHOD -- "<< std::endl;
   
 }
@@ -472,9 +652,9 @@ int main(int argc, char *argv[])
 
       parallel::distributed::Triangulation<2> tria(MPI_COMM_WORLD);
       create_triangulation(tria);
-
-      DriftDiffusion<2> Drift_Diffusion_2d(tria);
-      Drift_Diffusion_2d.run(1000, 1e-5);
+      
+      PoissonProblem<2> poisson_problem_2d(tria);
+      poisson_problem_2d.run(1500, 1e-18);
     
     }
   catch (std::exception &exc)
