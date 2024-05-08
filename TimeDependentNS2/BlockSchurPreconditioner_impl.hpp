@@ -56,7 +56,7 @@
     {
       TimerOutput::Scope timer_section(timer, "CG for Mp");
       SolverControl mp_control(src.block(1).size(),
-                               1e-2 * src.block(1).l2_norm());
+                               5e-1 * src.block(1).l2_norm(), true);
 
       // PETScWrappers::SolverCG cg_mp(mp_control,
       //                               mass_schur->get_mpi_communicator());
@@ -74,7 +74,7 @@
     {
       TimerOutput::Scope timer_section(timer, "CG for Sm");
       SolverControl sm_control(src.block(1).size(),              //Control class to determine convergence of iterative solvers
-                               1e-2 * src.block(1).l2_norm());
+                               5e-1 * src.block(1).l2_norm(), true);
 
       // PETScWrappers::SolverCG cg_sm(sm_control,
       //                               mass_schur->get_mpi_communicator());
@@ -102,7 +102,7 @@
     {
       TimerOutput::Scope timer_section(timer, "CG for A");
       SolverControl a_control(src.block(0).size(),
-                              1e-2 * src.block(0).l2_norm());
+                              5e-1 * src.block(0).l2_norm(), true);
                               
       // PETScWrappers::SolverCG cg_a(a_control,
       //                              mass_schur->get_mpi_communicator());

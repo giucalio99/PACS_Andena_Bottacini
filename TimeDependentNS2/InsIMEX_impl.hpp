@@ -302,6 +302,16 @@ void InsIMEX<dim>::assemble(bool use_initial_constraints,
                             ) *
                             fe_values.JxW(q);
 
+                        //     local_matrix(i, j) +=
+                        //   (viscosity *
+                        //      scalar_product(grad_phi_u[j], grad_phi_u[i]) +
+                        //    present_velocity_gradients[q] * phi_u[j] * phi_u[i] +
+                        //    grad_phi_u[j] * present_velocity_values[q] *
+                        //      phi_u[i] -
+                        //    div_phi_u[i] * phi_p[j] - phi_p[i] * div_phi_u[j] +
+                        //    gamma * div_phi_u[j] * div_phi_u[i]) * // To assemble the pressure mass matrix
+                        //   fe_values.JxW(q);
+
                             local_mass_matrix(i, j) +=
                             (phi_u[i] * phi_u[j] + phi_p[i] * phi_p[j]) *
                             fe_values.JxW(q);
@@ -373,17 +383,17 @@ InsIMEX<dim>::solve(bool use_initial_constraints, bool assemble_system, double t
                                                         mass_schur));
     }
     
-    // double coeff = 0.0 ;   // to avoid to have a tolerance too small
-    // if (time_step < 4) {
-    //     coeff = 1e-5;
-    // } else if (time_step >= 4 && time_step < 10) {
-    //     coeff = 1e-3;
-    // } else {
-    //     coeff = 1e-2;
-    // }
+    double coeff = 0.0 ;   // to avoid to have a tolerance too small
+    if (time_step < 4) {
+        coeff = 1e-5;
+    } else if (time_step >= 4 && time_step < 10) {
+        coeff = 1e-3;
+    } else {
+        coeff = 1e-2;
+    }
 
-    double coeff = 1e-5;
-
+    // double coeff = 1e-5;
+    
     SolverControl solver_control(                                         //Used by iterative methods to determine whether the iteration should be continued
     system_matrix.m(), coeff * system_rhs.l2_norm(), true);
 
