@@ -279,11 +279,10 @@ void InsIMEX<dim>::assemble(bool use_nonzero_constraints,
                             div_phi_u[i] * phi_p[j] -
                             phi_p[i] * div_phi_u[j] +
                             gamma * div_phi_u[j] * div_phi_u[i] +
-                            phi_u[i] * phi_u[j] / time.get_delta_t() +
-                            //+ current_velocity_gradients[q] * phi_u[j] * phi_u[i] +
-                            //grad_phi_u[j] * current_velocity_values[q] * phi_u[i]
-                            phi_u[i] * (current_velocity_gradients[q] * phi_u[j]) +
-                            phi_u[i] * (grad_phi_u[j] * current_velocity_values[q]) 
+                            phi_u[i] * phi_u[j] / time.get_delta_t() //+
+
+                            // phi_u[i] * (current_velocity_gradients[q] * phi_u[j]) +
+                            // phi_u[i] * (grad_phi_u[j] * current_velocity_values[q]) 
                             ) *
                             fe_values.JxW(q);
 
@@ -436,6 +435,7 @@ void InsIMEX<dim>::run()
         // We have to assemble the LHS for the initial two time steps:
         // once using nonzero_constraints, once using zero_constraints.
         bool assemble_system = (time.get_timestep() < 3);
+        // bool assemble_system = true;
 
         assemble(apply_nonzero_constraints, assemble_system);
 
