@@ -67,7 +67,7 @@ Problem<dim>::Problem(parallel::distributed::Triangulation<dim> &tria)
 template <int dim>
 void Problem<dim>::assemble_laplace_matrix()
 {
-	const QGauss<dim> quadrature_formula(fe.degree + 1);
+	const QTrapezoid<dim> quadrature_formula;
 
 	laplace_matrix_poisson = 0;
 

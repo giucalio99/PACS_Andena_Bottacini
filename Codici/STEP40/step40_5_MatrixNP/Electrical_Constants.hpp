@@ -16,9 +16,9 @@ const double D = 1.e+22;                // Positive doping value. They are both 
 const double ni = 1.e+10;   //forse 1e+16?              // constant starting ion density, charge density of ions in the ambient
 
 const double N1 = D/2. + std::sqrt(D*D + 4.*ni*ni)/2.; // [m^-3] Electron density on boundary 1
-const double P2 = A/2. + std::sqrt(A*A + 4.*ni*ni)/2.; // [m^-3] Electron density on boundary 2   (ELECTRON ??)
+const double P2 = A/2. + std::sqrt(A*A + 4.*ni*ni)/2.; // [m^-3] Holes density on boundary 2   
 
-const double P1 = ni*ni/N1; // [m^-3] Electron density on boundary 1
+const double P1 = ni*ni/N1; // [m^-3] Holes density on boundary 1
 const double N2 = ni*ni/P2; // [m^-3] Electron density on boundary 2
 
 const double V_TH = 2.6e-2;    // [V] ion temperature in Volts for both 

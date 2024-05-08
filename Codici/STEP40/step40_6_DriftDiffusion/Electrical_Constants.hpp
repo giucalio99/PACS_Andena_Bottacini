@@ -23,5 +23,11 @@ const double N2 = ni*ni/P2; // [m^-3] Electron density on boundary 2
 
 const double V_TH = 2.6e-2;    // [V] ion temperature in Volts for both 
 
+const double mup = 1.e-1;     // [(m^2)/(s*V)] Mobility of positive charges 
+const double mun = 3.e-2;     // [(m^2)/(s*V)] Mobility of holes
+
+const double Dp = mup * V_TH;  // Diffusion coefficient for holes (by Einstein relation)
+const double Dn = mun * V_TH;  // Diffusion coefficinet for electrons (by Einstein relation)
+
 
 #endif // ELECTRICAL_CONSTANTS_HPP

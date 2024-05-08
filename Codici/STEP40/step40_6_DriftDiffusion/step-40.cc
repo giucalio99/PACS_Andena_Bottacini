@@ -71,31 +71,43 @@
 
 #include "Electrical_Constants.hpp"    // FUNZIONA ANCHE SE NON E NEL CMAKEFILE TXT ??
 
-// COMMENTO DI QUESTO QUINTO SUB-STEP (OUR MESH) VERSO NEWTON POISSON
+// COMMENTO DI QUESTO SESTO SUB-STEP
 // per i commenti vedere step40 vanilla è scritto molto bene. in questo sub-step noi non raffiniamo la mesh
-// inoltre usiamo una nostra mesh presa in input. Performiamo tante iterazioni di newton ma non risolviamo
-// DriftDiffusion
+// inoltre usiamo una nostra mesh presa in input. Performiamo tante iterazioni di newton e risolviamo DriftDiffusion
 
 using namespace dealii;
 
 
 template <int dim>
-class PoissonProblem
+class DriftDiffusion
 {
 public:
 
-  PoissonProblem(parallel::distributed::Triangulation<dim> &tria);
+  DriftDiffusion(parallel::distributed::Triangulation<dim> &tria);
 
-  void run(const unsigned int max_iter, const double toll); // we pass to run the tollerance and the max number of iterations for newton
+  void run(const unsigned int max_iter_newton,
+           const double toll_newton,
+           const unsigned int max_iter_drift_diffusion,
+           const double toll_drift_diffusion); 
 
 private:
   
-  void setup_system();
-  void initialize_current_solution();
-  void assemble_system();
-  void solve();
-  void output_results(const unsigned int cycle);
+  void setup_poisson_newton();
+  void setup_drift_diffusion();
 
+  void initialize_current_potential();
+  void initialize_current_electron_density();
+  void initialize_current_hole_density();     //oppure ragionare con le SlotBoom variables ?
+
+  void assemble_newton_system();
+  void assemble_electron_system();
+  void assemble_hole_system();
+
+  void solve_newton_system();
+  void solve_electron_system();
+  void solve_hole_system();
+
+  void output_results(const unsigned int cycle); // cicli di drift diffusion
 
   MPI_Comm mpi_communicator;
 
@@ -107,14 +119,25 @@ private:
   IndexSet locally_owned_dofs;
   IndexSet locally_relevant_dofs;
 
-  //AffineConstraints<double> constraints;       non penso che servano, in effetti se la commenti in step40-4 stessa soluzione con e senza
-  AffineConstraints<double> zero_constraints;
 
-  PETScWrappers::MPI::SparseMatrix system_matrix;
+  AffineConstraints<double> zero_potential_constraints;
+  AffineConstraints<double> electron_constraints;
+  AffineConstraints<double> hole_constraints;
+  
 
-  PETScWrappers::MPI::Vector       current_solution;  
-  PETScWrappers::MPI::Vector       newton_update;     
-  PETScWrappers::MPI::Vector       system_rhs;
+  PETScWrappers::MPI::SparseMatrix  system_poisson_matrix;
+  PETScWrappers::MPI::SparseMatrix  system_electron_matrix;
+  PETScWrappers::MPI::SparseMatrix  system_hole_matrix;
+
+  PETScWrappers::MPI::Vector        current_potential;  
+  PETScWrappers::MPI::Vector        newton_potential_update;     
+  PETScWrappers::MPI::Vector        system_poisson_rhs;
+
+  PETScWrappers::MPI::Vector        current_electron_density; //oppure Slotboom?
+  PETScWrappers::MPI::Vector        system_electron_rhs;
+
+  PETScWrappers::MPI::Vector        current_hole_density;
+  PETScWrappers::MPI::Vector        system_hole_rhs;
 
   ConditionalOStream pcout;
 
@@ -123,7 +146,7 @@ private:
 //----------------------------------------------------------------------------------------------------------------------------------------------
 
 template <int dim>
-PoissonProblem<dim>::PoissonProblem(parallel::distributed::Triangulation<dim> &tria)
+DriftDiffusion<dim>::PoissonProblem(parallel::distributed::Triangulation<dim> &tria)
   : mpi_communicator(MPI_COMM_WORLD)
   , triangulation(tria)
   , fe(1)
@@ -134,7 +157,7 @@ PoissonProblem<dim>::PoissonProblem(parallel::distributed::Triangulation<dim> &t
 //--------------------------------------------------------------------------------------------------------------------------------------------------
 
 template <int dim>
-void PoissonProblem<dim>::setup_system()
+void DriftDiffusion<dim>::setup_system()
 {
 
   dof_handler.distribute_dofs(fe);
@@ -151,8 +174,8 @@ void PoissonProblem<dim>::setup_system()
 
   // PETSC VECTORS 
   current_solution.reinit(locally_owned_dofs, locally_relevant_dofs, mpi_communicator);  //ghosted
-  newton_update.reinit(locally_owned_dofs, mpi_communicator);     //non ghosted
-  system_rhs.reinit(locally_owned_dofs, mpi_communicator);        //non ghosted
+  newton_update.reinit(locally_owned_dofs, locally_relevant_dofs, mpi_communicator);     //ghosted
+  system_rhs.reinit(locally_owned_dofs, mpi_communicator);                               //non ghosted
  
   // CONSTRAINTS 
   /*
@@ -188,7 +211,7 @@ void PoissonProblem<dim>::setup_system()
 //---------------------------------------------------------------------------------------------------------------------------------------------------
 
 template <int dim>
-void PoissonProblem<dim>:: initialize_current_solution(){
+void DriftDiffusion<dim>:: initialize_current_solution(){
 
   //NB: the L2 norm of current solution without constraints is zero, it's correct (without = 0).
   //NB: abbiamo constatato che setup_system scrive effettivamente in constraints i valori imposti
@@ -234,10 +257,10 @@ void PoissonProblem<dim>:: initialize_current_solution(){
 // STIAMO USANDO NODI DI QUADRATURA DI GAUSS
 
 template <int dim>
-void PoissonProblem<dim>::assemble_system()
+void DriftDiffusion<dim>::assemble_system()
 {
 
-  const QTrapezoid<dim> quadrature_formula;
+  const QGauss<dim> quadrature_formula(fe.degree + 1);
   
   system_matrix = 0;
   system_rhs    = 0;
@@ -286,7 +309,7 @@ void PoissonProblem<dim>::assemble_system()
                   }             
                   
                   // RHS F
-                  cell_rhs(i) +=  eps_0*eps_r*old_solution_gradients[q_point]*fe_values.shape_grad(i,q_point)*fe_values.JxW(q_point) - \
+                  cell_rhs(i) +=  -eps_0*eps_r*old_solution_gradients[q_point]*fe_values.shape_grad(i,q_point)*fe_values.JxW(q_point) - \
                                   q0*(ni*std::exp(old_solution[q_point]/V_TH)- ni*std::exp(-old_solution[q_point]/V_TH))*fe_values.shape_value(i,q_point) * fe_values.JxW(q_point)+\
                                   q0*doping*fe_values.shape_value(i,q_point)*fe_values.JxW(q_point); //qo*N(x) integrato
                   
@@ -317,7 +340,7 @@ void PoissonProblem<dim>::assemble_system()
 //------------------------------------------------------------------------------------------------------------------------------------------------
 
 template <int dim>
-void PoissonProblem<dim>::solve()
+void DriftDiffusion<dim>::solve()
 {
   // NB: Assemble funziona e riempie con elementi dell'ordine di 1e-10 sia la matrice che il rhs del system
   // NB: Solve sembrerebbe funzionare, non sono sicuro su quali setting mettere e quale solver usare,
@@ -344,7 +367,7 @@ void PoissonProblem<dim>::solve()
 //-----------------------------------------------------------------------------------------------------------------------------------------------------
 
 template <int dim>
-void PoissonProblem<dim>::output_results(const unsigned int cycle)
+void DriftDiffusion<dim>::output_results(const unsigned int cycle)
 {
 
   DataOut<dim> data_out;
@@ -369,7 +392,10 @@ void PoissonProblem<dim>::output_results(const unsigned int cycle)
 //---------------------------------------------------------------------------------------------------------------------------------------------------
 
 template <int dim>
-void PoissonProblem<dim>::run(const unsigned int max_iter, const double toll) // tolerance linked to the magnitude of the newton update
+void DriftDiffusion<dim>::run(const unsigned int max_iter_newton,
+                              const double toll_newton,
+                              const unsigned int max_iter_drift_diffusion,
+                              const double toll_drift_diffusion) // tolerance linked to the magnitude of the newton update
 {
   
   unsigned int counter = 0; // it keeps track of newton iter
@@ -394,18 +420,11 @@ void PoissonProblem<dim>::run(const unsigned int max_iter, const double toll) //
     assemble_system();
     pcout << " Solve System"<< std::endl;
     solve();
-
-		
-
-      
-
     residual_norm = newton_update.l2_norm();
     pcout << " Update Residual: "<<residual_norm<<std::endl<<std::endl;
     counter ++;
-  
-  
-  }
 
+  }
 
   if(counter == max_iter){
     pcout<< " ATTENTION! YOU REACH MAX NUMBER OF ITERATIONS!"<<std::endl;
@@ -453,11 +472,9 @@ int main(int argc, char *argv[])
 
       parallel::distributed::Triangulation<2> tria(MPI_COMM_WORLD);
       create_triangulation(tria);
-      
-      
 
-      PoissonProblem<2> poisson_problem_2d(tria);
-      poisson_problem_2d.run(1000, 1e-10);
+      DriftDiffusion<2> Drift_Diffusion_2d(tria);
+      Drift_Diffusion_2d.run(1000, 1e-5);
     
     }
   catch (std::exception &exc)
