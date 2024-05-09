@@ -140,6 +140,8 @@ class Problem{
     void make_constraints_drift_diffusion();
 
     void initialize_system_poisson();
+    void initialize_poisson_solution();
+
     void initialize_system_drift_diffusion();
 
     void assemble_laplace_matrix();

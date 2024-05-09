@@ -93,15 +93,16 @@ private:
   
   void setup_system(); 
 
-  void initialize_current_solution();
+  // void initialize_current_solution();
+  void initialize_densities();
   void compute_densities();
 
-  void assemble_laplace_matrix();
-  void assemble_mass_matrix();
+  void assemble_laplace_matrix(bool use_nonzero_constraints);
+  void assemble_mass_matrix(bool use_nonzero_constraints);
   //void assemble_system(); vecchio con weak form
-  void assemble_system_matrix();
+  void assemble_system_matrix(bool use_nonzero_constraints);
 
-  void solve();
+  void solve(bool use_nonzero_constraints);
   void clumping();
 
   void output_results(const unsigned int cycle);
@@ -117,7 +118,7 @@ private:
   IndexSet locally_owned_dofs;
   IndexSet locally_relevant_dofs;
 
-  //AffineConstraints<double> constraints;       non penso che servano, in effetti se la commenti in step40-4 stessa soluzione con e senza
+  AffineConstraints<double> constraints;       //non penso che servano, in effetti se la commenti in step40-4 stessa soluzione con e senza
   AffineConstraints<double> zero_constraints;
 
   PETScWrappers::MPI::SparseMatrix system_matrix;
@@ -174,17 +175,24 @@ void PoissonProblem<dim>::setup_system()
   hole_density.reinit(locally_owned_dofs, locally_relevant_dofs, mpi_communicator);      // ghosted
  
   // CONSTRAINTS 
-  /*
+  
   constraints.clear();
   constraints.reinit(locally_relevant_dofs);    // SERVONO VERAMNETE LORO ?? i constraints normali, non nulli intendo
-  VectorTools::interpolate_boundary_values(dof_handler, 1, Functions::ConstantFunction<dim>(V_TH*std::log(D/ni)), constraints);
-  VectorTools::interpolate_boundary_values(dof_handler, 2, Functions::ConstantFunction<dim>(-V_TH*std::log(A/ni)), constraints);
-  */
+  // VectorTools::interpolate_boundary_values(dof_handler, 1, Functions::ConstantFunction<dim>(V_TH*std::log(D/ni)), constraints);
+  // VectorTools::interpolate_boundary_values(dof_handler, 2, Functions::ConstantFunction<dim>(-V_TH*std::log(A/ni)), constraints);
+  VectorTools::interpolate_boundary_values(dof_handler, 1, Functions::ConstantFunction<dim>(0), constraints);
+  VectorTools::interpolate_boundary_values(dof_handler, 2, Functions::ConstantFunction<dim>(0), constraints);
+  constraints.close();
+
+
+  
   // ZERO CONSTRAINTS FOR NEWTON
   zero_constraints.clear();
   zero_constraints.reinit(locally_relevant_dofs);
   VectorTools::interpolate_boundary_values(dof_handler, 1, Functions::ZeroFunction<dim>(), zero_constraints);
   VectorTools::interpolate_boundary_values(dof_handler, 2, Functions::ZeroFunction<dim>(), zero_constraints);
+  // VectorTools::interpolate_boundary_values(dof_handler, 1, Functions::ConstantFunction<dim>(-0.001), zero_constraints);
+  // VectorTools::interpolate_boundary_values(dof_handler, 2, Functions::ConstantFunction<dim>(-0.001), zero_constraints);
   zero_constraints.close();
 
   //DoFTools::make_hanging_node_constraints(dof_handler, constraints);  // non li abbiamo
@@ -216,47 +224,47 @@ void PoissonProblem<dim>::setup_system()
 
 //---------------------------------------------------------------------------------------------------------------------------------------------------
 
-template <int dim>
-void PoissonProblem<dim>:: initialize_current_solution(){
+// template <int dim>
+// void PoissonProblem<dim>:: initialize_current_solution(){
 
-  //NB: the L2 norm of current solution without constraints is zero, it's correct (without = 0).
-  //NB: abbiamo constatato che setup_system scrive effettivamente in constraints i valori imposti
-  //    ergo in constrints ho effettivamente i valori delle BC legate ai vari dof dei processori VEDERE CARTELLA OUTPUT AFFINE CONST STEP PRECEDENTE.
-  //    Ciononostante noi poi non usiamo constraints per imporre le boundary conditions
-  //NB: finalmente in current solution ci sono dei valori sensati, una volta impostate le BCs ha norma L2 non banale e 
-  //    norma L_INF coerente con i valori delle BCs.  QUESTA FUNCTION FA IL SUO
-  //    unica cosa brutta l'uso di un temp vector
+//   //NB: the L2 norm of current solution without constraints is zero, it's correct (without = 0).
+//   //NB: abbiamo constatato che setup_system scrive effettivamente in constraints i valori imposti
+//   //    ergo in constrints ho effettivamente i valori delle BC legate ai vari dof dei processori VEDERE CARTELLA OUTPUT AFFINE CONST STEP PRECEDENTE.
+//   //    Ciononostante noi poi non usiamo constraints per imporre le boundary conditions
+//   //NB: finalmente in current solution ci sono dei valori sensati, una volta impostate le BCs ha norma L2 non banale e 
+//   //    norma L_INF coerente con i valori delle BCs.  QUESTA FUNCTION FA IL SUO
+//   //    unica cosa brutta l'uso di un temp vector
  
-  PETScWrappers::MPI::Vector temp;
-	temp.reinit(locally_owned_dofs, mpi_communicator);   //non ghosted, serve per imporre i valori delle BCs
-	temp = current_solution; //current solution here is zero by default constructor
+//   PETScWrappers::MPI::Vector temp;
+// 	temp.reinit(locally_owned_dofs, mpi_communicator);   //non ghosted, serve per imporre i valori delle BCs
+// 	temp = current_solution; //current solution here is zero by default constructor
 	  
-  std::map<types::global_dof_index, double> boundary_values;
+//   std::map<types::global_dof_index, double> boundary_values;
   
-  VectorTools::interpolate_boundary_values(dof_handler,
-                                           1,
-                                           Functions::ConstantFunction<dim>(V_TH*std::log(D/ni)),
-                                           boundary_values);
+//   VectorTools::interpolate_boundary_values(dof_handler,
+//                                            1,
+//                                            Functions::ConstantFunction<dim>(V_TH*std::log(D/ni)),
+//                                            boundary_values);
 
-  VectorTools::interpolate_boundary_values(dof_handler,
-                                           2,
-                                           Functions::ConstantFunction<dim>(-V_TH*std::log(A/ni)),
-                                           boundary_values);
+//   VectorTools::interpolate_boundary_values(dof_handler,
+//                                            2,
+//                                            Functions::ConstantFunction<dim>(-V_TH*std::log(A/ni)),
+//                                            boundary_values);
   
-  for (auto &boundary_value : boundary_values){
-    temp(boundary_value.first) = boundary_value.second;
-  }
+//   for (auto &boundary_value : boundary_values){
+//     temp(boundary_value.first) = boundary_value.second;
+//   }
   
-  temp.compress(VectorOperation::insert); //giusto insert, add non funziona
-  current_solution = temp;
+//   temp.compress(VectorOperation::insert); //giusto insert, add non funziona
+//   current_solution = temp;
   
-  pcout << " The L2 norm of current solution is: "<< current_solution.l2_norm()<< std::endl;
-  pcout << " The L_INF norm of current solution is: "<< current_solution.linfty_norm()<< std::endl;
+//   pcout << " The L2 norm of current solution is: "<< current_solution.l2_norm()<< std::endl;
+//   pcout << " The L_INF norm of current solution is: "<< current_solution.linfty_norm()<< std::endl;
   
-  pcout << " End of initialization_current_solution "<< std::endl<<std::endl;
+//   pcout << " End of initialization_current_solution "<< std::endl<<std::endl;
 
 
-}
+// }
 //-------------------------------------------------------------------------------------------------------------------------------------------------
 template <int dim>
 void PoissonProblem<dim>:: compute_densities(){   
@@ -269,8 +277,8 @@ void PoissonProblem<dim>:: compute_densities(){
 	temp1.reinit(locally_owned_dofs, mpi_communicator);
   temp2.reinit(locally_owned_dofs, mpi_communicator);
   
-	temp1 = current_solution;
-  temp2 = current_solution;
+	// temp1 = current_solution;
+  // temp2 = current_solution;
   
   //double check = 0;
 
@@ -279,8 +287,8 @@ void PoissonProblem<dim>:: compute_densities(){
   
   for (const auto& i : local_elements){ 
 
-    temp1[i] = ni*std::exp(temp1[i]/V_TH); //electrons
-    temp2[i] = ni*std::exp(-temp2[i]/V_TH);//holes
+    temp1[i] = ni*std::exp(current_solution[i]/V_TH); //electrons
+    temp2[i] = ni*std::exp(-current_solution[i]/V_TH); //holes
     
     //check = temp1[i]*temp2[i]; deve essere 10^20 --> lo stampa giusto
     //pcout << "check densità: " <<check << std::endl;
@@ -306,9 +314,28 @@ void PoissonProblem<dim>:: compute_densities(){
   pcout << " End of compute densities "<< std::endl<<std::endl;
 
 }
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------
+template <int dim>
+void PoissonProblem<dim>::initialize_densities()
+{
+
+  PETScWrappers::MPI::Vector temp_elec;
+  PETScWrappers::MPI::Vector temp_hole;
+
+	temp_elec.reinit(locally_owned_dofs, mpi_communicator); 
+  temp_hole.reinit(locally_owned_dofs, mpi_communicator);  
+
+  MappingQ1<dim> mapping;
+
+  VectorTools::interpolate(mapping, dof_handler, ElectronInitialValues<dim>(), temp_elec);
+  VectorTools::interpolate(mapping, dof_handler, HoleInitialValues<dim>(), temp_hole);
+	 
+  electron_density = temp_elec;
+  hole_density = temp_hole;
+}
 //-----------------------------------------------------------------------------------------------------------------------------------------------
 template <int dim>
-void PoissonProblem<dim>::assemble_laplace_matrix()
+void PoissonProblem<dim>::assemble_laplace_matrix(bool use_nonzero_constraints)
 {
 	const QTrapezoid<dim> quadrature_formula;
 
@@ -341,8 +368,11 @@ void PoissonProblem<dim>::assemble_laplace_matrix()
             }
           }
 
+        const AffineConstraints<double> &constraints_used =
+            use_nonzero_constraints ? constraints : zero_constraints;
+
         cell->get_dof_indices(local_dof_indices);
-        zero_constraints.distribute_local_to_global(cell_matrix,
+        constraints_used.distribute_local_to_global(cell_matrix,
                                                     local_dof_indices,
                                                     laplace_matrix);
 		  }
@@ -352,13 +382,13 @@ laplace_matrix.compress(VectorOperation::add);
 
 pcout << " The L_INF norm of the laplace matrix is "<<laplace_matrix.linfty_norm() <<std::endl;
 pcout << " The L_FROB norm of the laplace matrix is "<<laplace_matrix.frobenius_norm() <<std::endl<<std::endl;
-pcout << " End of Assembling Laplce matrix "<< std::endl<<std::endl;
+pcout << " End of Assembling Laplace matrix "<< std::endl<<std::endl;
 }
 
 //---------------------------------------------------------------------------------------------------------------------------------------------------
 
 template <int dim>
-void PoissonProblem<dim>::assemble_mass_matrix()
+void PoissonProblem<dim>::assemble_mass_matrix(bool use_nonzero_constraints)
 {
 	const QTrapezoid<dim> quadrature_formula;
 
@@ -392,8 +422,11 @@ void PoissonProblem<dim>::assemble_mass_matrix()
 				}
 			}
 
+    const AffineConstraints<double> &constraints_used =
+            use_nonzero_constraints ? constraints : zero_constraints;
+
 		cell->get_dof_indices(local_dof_indices);
-		zero_constraints.distribute_local_to_global(cell_matrix,
+		constraints_used.distribute_local_to_global(cell_matrix,
 												                        local_dof_indices,
 												                        mass_matrix );
 		}
@@ -409,7 +442,7 @@ void PoissonProblem<dim>::assemble_mass_matrix()
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
 
 template <int dim>
-void PoissonProblem<dim>::assemble_system_matrix()
+void PoissonProblem<dim>::assemble_system_matrix(bool use_nonzero_constraints)
 {
   //BUILDING SYSTEM MATRIX
 
@@ -430,14 +463,16 @@ void PoissonProblem<dim>::assemble_system_matrix()
   
   // generate the term:  (n+p)*MASS_MAT   lumped version stored in density_matrix
 
-  for (auto iter = locally_owned_dofs.begin(); iter != locally_owned_dofs.end(); ++iter){ 
+  // for (auto iter = locally_owned_dofs.begin(); iter != locally_owned_dofs.end(); ++iter){ 
 
-    new_value = mass_matrix(*iter, *iter) * (temp_elec[*iter] + temp_hole[*iter]);
+  for (const auto& iter : locally_owned_dofs){ 
 
-    density_matrix.set(*iter,*iter,new_value);
+    new_value = mass_matrix(iter, iter) * (temp_elec[iter] + temp_hole[iter]);
+
+    density_matrix.set(iter,iter,new_value);
 
   }
-  
+
   density_matrix.compress(VectorOperation::insert);
   
   pcout << " The L_INF norm of the density matrix is "<<density_matrix.linfty_norm() <<std::endl;
@@ -457,11 +492,9 @@ void PoissonProblem<dim>::assemble_system_matrix()
 
   PETScWrappers::MPI::Vector temp;
   PETScWrappers::MPI::Vector doping;     //store the term N, that is 1e+22 on the left side and 1e-22 on the right
-  PETScWrappers::MPI::Vector temp_solution;
-  
+   
 	temp.reinit(locally_owned_dofs, mpi_communicator);
   doping.reinit(locally_owned_dofs, mpi_communicator);
-  temp_solution.reinit(locally_owned_dofs, mpi_communicator);
   
   doping = 0;
   temp = 0;
@@ -470,29 +503,29 @@ void PoissonProblem<dim>::assemble_system_matrix()
 
   VectorTools::interpolate(mapping, dof_handler, DopingValues<dim>(), doping); // We interpolate the previusly created vector with the initial values of Doping provided by DopingValues
 
-  doping -= temp_hole;
-  doping += temp_elec;
+  doping += temp_hole;
+  doping -= temp_elec;
 
   // basically: temp = (n -p -N)
 
   mass_matrix.vmult(temp,doping);  // temp = MASS*(n-p-N)
 
-  system_rhs.add(-q0, temp);     // SYS_RHS = -q0*MASS*(n-p-N)
-
-  // temp_solution = current_solution;            // temp_solution = phi 
+  system_rhs.add(q0, temp);     // SYS_RHS = -q0*MASS*(n-p-N)
 
   laplace_matrix.vmult(temp, current_solution); // temp = A*phi
 
   system_rhs.add(- eps_r * eps_0, temp);    //SYS_RHS = SYS_RHS - eps*A*phi
 
-  zero_constraints.distribute(system_rhs);
+  const AffineConstraints<double> &constraints_used =
+            use_nonzero_constraints ? constraints : zero_constraints;
 
+  constraints_used.distribute(system_rhs);
 
 }
 //------------------------------------------------------------------------------------------------------------------------------------------------
 
 template <int dim>
-void PoissonProblem<dim>::solve()
+void PoissonProblem<dim>::solve(bool use_nonzero_constraints)
 {
   // NB: Assemble funziona e riempie con elementi dell'ordine di 1e-10 sia la matrice che il rhs del system
   // NB: Solve sembrerebbe funzionare, non sono sicuro su quali setting mettere e quale solver usare,
@@ -505,29 +538,34 @@ void PoissonProblem<dim>::solve()
   //CLUMPING
   double result=0;
   
-  for (auto iter = locally_owned_dofs.begin(); iter != locally_owned_dofs.end(); ++iter){ 
-  
-  if (newton_update[*iter] < -V_TH) {
+  // for (auto iter = locally_owned_dofs.begin(); iter != locally_owned_dofs.end(); ++iter){ 
+  for (const auto& iter : locally_owned_dofs){ 
+
+  if (newton_update[iter] < -V_TH) {
     result = -V_TH;
-  } else if (newton_update[*iter] > V_TH) {
+  } else if (newton_update[iter] > V_TH) {
     result = V_TH;
   } else {
-    result = newton_update[*iter];
+    result = newton_update[iter];
   }
 
-  newton_update[*iter] = result;
+  newton_update[iter] = result;
 
   }
 
   newton_update.compress(VectorOperation::insert); 
-  zero_constraints.distribute(newton_update);
+
+  const AffineConstraints<double> &constraints_used =
+            use_nonzero_constraints ? constraints : zero_constraints;
+
+  constraints_used.distribute(newton_update);
   
   PETScWrappers::MPI::Vector temp;
   temp.reinit(locally_owned_dofs, mpi_communicator);
 
 
   temp = current_solution;
-  temp.add(0.8, newton_update);
+  temp.add(1, newton_update); //Deve essere uno se no la prima B.C. viene moltiplicata per 0.8
   //temp += newton_update;   // per adesso noi aggiorniamo cosi: phi_k+1 = phi_k + a * delta_phi. dove a =1, ma è una scelta
   current_solution = temp;
 
@@ -547,9 +585,9 @@ void PoissonProblem<dim>::output_results(const unsigned int cycle)
   DataOut<dim> data_out;
   data_out.attach_dof_handler(dof_handler);
   data_out.add_data_vector(current_solution, "phi");
-  data_out.add_data_vector(electron_density, "n");
-  data_out.add_data_vector(hole_density, "p");
-  data_out.add_data_vector(newton_update, "d_phi");
+  // data_out.add_data_vector(electron_density, "n");
+  // data_out.add_data_vector(hole_density, "p");
+  // data_out.add_data_vector(newton_update, "d_phi");
 
   Vector<float> subdomain(triangulation.n_active_cells());
   for (unsigned int i = 0; i < subdomain.size(); ++i)
@@ -579,26 +617,48 @@ void PoissonProblem<dim>::run(const unsigned int max_iter, const double toll) //
   setup_system();
   
   pcout << "  INITIALIZATION POTENTIAL AND DENSITIES "<< std::endl;
-  initialize_current_solution();
+  //initialize_current_solution();
   compute_densities();
   
+  
   pcout << "  BUILD LAPLACE - MASS MATRICES "<< std::endl;
-  assemble_laplace_matrix();
-  assemble_mass_matrix();
+  // assemble_laplace_matrix(true);
+  // assemble_mass_matrix(true);
 
   double increment_norm = std::numeric_limits<double>::max(); // FIN QUI CORRETTO, VISTO SU PARAVIEW CHE LE BC SONO RISPETTATE E IL POTENZIALE E GIUSTO
 
   pcout << " Initial Increment Norm: " << increment_norm << std::endl<<std::endl;
   
+  bool non_zero_constraints;
 
   while(counter < max_iter && increment_norm > toll){
 
     pcout << " NEWTON ITERATION NUMBER: "<< counter +1<<std::endl<<std::endl;
     pcout << " Assemble System Matrix"<< std::endl;
 
-    assemble_system_matrix();
+    
+    if(counter == 0){
+
+      non_zero_constraints = true;
+
+      assemble_laplace_matrix(non_zero_constraints);
+      assemble_mass_matrix(non_zero_constraints);
+
+
+    }else{
+      
+      non_zero_constraints = false;
+
+      assemble_laplace_matrix(non_zero_constraints);
+      assemble_mass_matrix(non_zero_constraints);
+      
+    }
+    
+    
+    assemble_system_matrix(non_zero_constraints);
+
     pcout << " Solve System"<< std::endl;
-    solve(); // dentro c'e anche il clamping
+    solve(non_zero_constraints); // dentro c'e anche il clamping
     compute_densities();
   
     increment_norm = newton_update.l2_norm();
@@ -654,7 +714,7 @@ int main(int argc, char *argv[])
       create_triangulation(tria);
       
       PoissonProblem<2> poisson_problem_2d(tria);
-      poisson_problem_2d.run(1500, 1e-18);
+      poisson_problem_2d.run(500, 1e-18);
     
     }
   catch (std::exception &exc)

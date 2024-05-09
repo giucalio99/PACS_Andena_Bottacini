@@ -224,7 +224,8 @@ Point<dim-1>  CollectorGeometry<dim>::pull_back(const Point<dim> &p) const      
 { 
   // const std::string filename = "../../Structured_Meshes/coarse_WW.msh";
   const std::string filename = "../../Structured_Meshes/structured_naca_2.msh";
-  cout << "Reading from " << filename << std::endl;
+  // cout << "Reading from " << filename << std::endl;
+  pcout <<"Reading the mesh from " << filename << std::endl;
   std::ifstream input_file(filename);
   GridIn<2>       grid_in;
   grid_in.attach_triangulation(tria);            //Attach this triangulation to be fed with the grid data

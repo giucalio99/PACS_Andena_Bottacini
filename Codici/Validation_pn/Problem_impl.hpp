@@ -78,8 +78,8 @@ void Problem<dim>::setup_poisson()
 	// CONSTRAIN PROBLEM AND BOUNDARY VALUES
 	constraints_poisson.clear();  // Reset the flag determining whether new entries are accepted or not
 	DoFTools::make_hanging_node_constraints(dof_handler, constraints_poisson); // Compute the constraints resulting from the presence of hanging nodes. We put the result in constraints_poisson
-	VectorTools::interpolate_boundary_values(dof_handler, 1, Functions::ZeroFunction<dim>(), constraints_poisson); // Set the values of constraints_poisson on the left edge boundary of the domain
-	VectorTools::interpolate_boundary_values(dof_handler, 2, Functions::ZeroFunction<dim>(), constraints_poisson); // Set the values of constraints_poisson on the right edge boundary of the domain
+	VectorTools::interpolate_boundary_values(dof_handler, 1, Functions::ConstantFunction<dim>(V_E*log(N1/N_0)), constraints_poisson); // Set the values of constraints_poisson on the left edge boundary of the domain
+	VectorTools::interpolate_boundary_values(dof_handler, 2, Functions::ConstantFunction<dim>(V_E*log(N2/N_0)), constraints_poisson); // Set the values of constraints_poisson on the right edge boundary of the domain
 	constraints_poisson.close();  // Close the filling of entries and sort the lines and columns
 
 	// Used for the update term in Newton's method
