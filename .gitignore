@@ -16,4 +16,5 @@ Codici/Validation_pn_parallel2/build
 Codici/STEP40/*/build
 # Ignore build directory of TDNS
 TimeDependentNS2/build/
-
+# Ignore build directory in Menessini original
+Codici//Menessini_PN_Original/build
