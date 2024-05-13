@@ -13,7 +13,7 @@ const double L = 1.5e-6;                // Length of the domain
 const double A = 1.e+22;                // Negative doping value (when we operate with this value we put a minus sign before)
 const double D = 1.e+22;                // Positive doping value. They are both constant in time
 
-const double ni = 1.e+10;   //forse 1e+16?              // constant starting ion density, charge density of ions in the ambient
+const double ni = 1.e+16;   //forse 1e+16?              // constant starting ion density, charge density of ions in the ambient
 
 const double N1 = D/2. + std::sqrt(D*D + 4.*ni*ni)/2.; // [m^-3] Electron density on boundary 1
 const double P2 = A/2. + std::sqrt(A*A + 4.*ni*ni)/2.; // [m^-3] Electron density on boundary 2   (ELECTRON ??)
