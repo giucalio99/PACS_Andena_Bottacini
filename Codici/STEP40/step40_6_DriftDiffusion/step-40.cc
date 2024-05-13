@@ -74,11 +74,161 @@
 
 // COMMENTO DI QUESTO QUINTO SUB-STEP (OUR MESH) VERSO NEWTON POISSON
 // per i commenti vedere step40 vanilla è scritto molto bene. in questo sub-step noi non raffiniamo la mesh
-// inoltre usiamo una nostra mesh presa in input. Performiamo tante iterazioni di newton ma non risolviamo
-// DriftDiffusion
+// inoltre usiamo una nostra mesh presa in input. Performiamo tante iterazioni di newton e risolviamo
+// DriftDiffusion; questo è l'ultimo step
 
 using namespace dealii;
 
+// HELPER FUNCTIONS TO BUILD DRIFT DIFFUSION MATRIX
+
+void bernoulli (double x, double &bp, double &bn)
+{
+  const double xlim = 1.0e-2;
+  double ax  = fabs(x);
+
+  bp  = 0.0;
+  bn  = 0.0;
+
+  //  X=0
+  if (x == 0.0)
+    {
+      bp = 1.0;
+      bn = 1.0;
+      return;
+    }
+
+  // ASYMPTOTICS
+  if (ax > 80.0)
+    {
+      if (x > 0.0)
+        {
+          bp = 0.0;
+          bn = x;
+        }
+      else
+        {
+          bp = -x;
+          bn = 0.0;
+        }
+      return;
+    }
+
+  // INTERMEDIATE VALUES
+  if (ax <= 80 &&  ax > xlim)
+    {
+      bp = x / (exp (x) - 1.0);
+      bn = x + bp;
+      return;
+    }
+
+  // SMALL VALUES
+  if (ax <= xlim &&  ax != 0.0)
+    {
+      double jj = 1.0;
+      double fp = 1.0;
+      double fn = 1.0;
+      double df = 1.0;
+      double segno = 1.0;
+      while (fabs (df) > 1.0e-16)
+        {
+          jj += 1.0;
+          segno = -segno;
+          df = df * x / jj;
+          fp = fp + df;
+          fn = fn + segno * df;
+        }
+      bp = 1 / fp;
+      bn = 1 / fn;
+      return;
+    }
+
+};
+
+double side_length (const Point<2> a, const Point<2> b)
+{
+	double length = 0.;
+
+	if (a[0] == b[0])
+		length = std::abs(a[1] - b[1]);
+	else if (a[1] == b[1])
+		length = std::abs(a[0] - b[0]);
+	else
+		length = std::sqrt(a[0]*a[0] + b[0]*b[0] - 2.*a[0]*b[0] + a[1]*a[1] + b[1]*b[1] - 2.*a[1]*b[1]);
+
+	return length;
+}
+
+double triangle_denom(const Point<2> a, const Point<2> b, const Point<2> c)
+{
+	const double x1 = a[0];
+	const double y1 = a[1];
+
+	const double x2 = b[0];
+	const double y2 = b[1];
+
+	const double x3 = c[0];
+	const double y3 = c[1];
+
+	const double denom = x1*(y2-y3) + x2*(y3-y1) + x3*(y1-y2);
+
+	return denom;
+}
+
+Tensor<1,2> face_normal(const Point<2> a, const Point<2> b) {
+
+	Tensor<1,2> tangent, normal;
+
+	tangent[0] = b[0] - a[0];
+	tangent[1] = b[1] - a[1];
+
+	normal[0] = -tangent[1];
+	normal[1] = tangent[0];
+
+	return normal;
+}
+
+
+FullMatrix<double> compute_triangle_matrix(const Point<2> a, const Point<2> b, const Point<2> c, const double alpha12, const double alpha23, const double alpha31, const double D)
+{
+	const unsigned int size = 3;
+	FullMatrix<double> tria_matrix(size,size);
+
+	tria_matrix = 0;
+
+	const double denom = triangle_denom(a,b,c);
+	const double area = 0.5*std::abs(denom);
+
+	const Tensor<1,2> grad_psi_1 = face_normal(b,c)/denom;
+	const Tensor<1,2> grad_psi_2 = face_normal(c,a)/denom;
+	const Tensor<1,2> grad_psi_3 = face_normal(a,b)/denom;
+
+	const double l_12 = grad_psi_1 * grad_psi_2;
+	const double l_23 = grad_psi_2 * grad_psi_3;
+	const double l_31 = grad_psi_1 * grad_psi_3;
+
+	double bp12, bn12, bp23, bn23, bp31, bn31;
+
+	bernoulli(alpha12,bp12,bn12);
+	bernoulli(alpha23,bp23,bn23);
+	bernoulli(alpha31,bp31,bn31);
+
+	tria_matrix(0,1) = D * area * bp12 * l_12;
+	tria_matrix(0,2) = D * area * bn31 * l_31;
+
+	tria_matrix(1,0) = D * area * bn12 * l_12;
+	tria_matrix(1,2) = D * area * bp23 * l_23;
+
+	tria_matrix(2,0) = D * area * bp31 * l_31;
+	tria_matrix(2,1) = D * area * bn23 * l_23;
+	
+	tria_matrix(0,0) = - (tria_matrix(1,0)+tria_matrix(2,0));
+	tria_matrix(1,1) = - (tria_matrix(0,1)+tria_matrix(2,1));
+	tria_matrix(2,2) = - (tria_matrix(0,2)+tria_matrix(1,2));
+
+	return tria_matrix;
+}
+
+//-------------- CLASS POISSON PROBLEM CHE DOVREBBE ESSERE CHIAMATA DRIFT DIFFUSION ----------------------------------------------------------
 
 template <int dim>
 class PoissonProblem
@@ -87,23 +237,28 @@ public:
 
   PoissonProblem(parallel::distributed::Triangulation<dim> &tria);
 
-  void run(const unsigned int max_iter, const double toll); // we pass to run the tolerance and the max number of iterations for newton
+  void run(); // we pass to run the tolerance and the max number of iterations for newton
 
 private:
   
-  void setup_system(); 
+  void setup_system(); // sia newton poisson che drift diffusion
 
   // void initialize_current_solution();
-  void initialize_densities();
-  void compute_densities();
+  void initialization();
+  //void compute_densities();
 
   void assemble_laplace_matrix(bool use_nonzero_constraints);
   void assemble_mass_matrix(bool use_nonzero_constraints);
-  //void assemble_system(); vecchio con weak form
-  void assemble_system_matrix(bool use_nonzero_constraints);
+  void assemble_nonlinear_poisson(bool use_nonzero_constraints);
+  void assemble_drift_diffusion_matrix();
+  void one_cycle_newton_poisson(bool use_nonzero_constraints,
+                                const unsigned int max_iter_newton, 
+                                const double toll_newton);
 
-  void solve(bool use_nonzero_constraints);
-  void clumping();
+  void solve_poisson(bool use_nonzero_constraints);
+  void apply_drift_diffusion_boundary_conditions();
+  void solve_drift_diffusion();
+  
 
   void output_results(const unsigned int cycle);
 
@@ -118,20 +273,36 @@ private:
   IndexSet locally_owned_dofs;
   IndexSet locally_relevant_dofs;
 
-  AffineConstraints<double> constraints;       //non penso che servano, in effetti se la commenti in step40-4 stessa soluzione con e senza
+  AffineConstraints<double> constraints;       
   AffineConstraints<double> zero_constraints;
-
-  PETScWrappers::MPI::SparseMatrix system_matrix;
+  
+  AffineConstraints<double> density_constraints; 
+  
+  // poisson matrices
+  PETScWrappers::MPI::SparseMatrix system_matrix_poisson;
   PETScWrappers::MPI::SparseMatrix laplace_matrix;
   PETScWrappers::MPI::SparseMatrix mass_matrix;
   PETScWrappers::MPI::SparseMatrix density_matrix;
+  
+  // drift diffusion matrices
+  PETScWrappers::MPI::SparseMatrix hole_drift_diffusion_matrix;
+  PETScWrappers::MPI::SparseMatrix electron_drift_diffusion_matrix;
+  PETScWrappers::MPI::SparseMatrix electron_matrix;
+  PETScWrappers::MPI::SparseMatrix hole_matrix;
+
 
   PETScWrappers::MPI::Vector       current_solution;  
   PETScWrappers::MPI::Vector       newton_update;     
-  PETScWrappers::MPI::Vector       system_rhs;
+  PETScWrappers::MPI::Vector       poisson_system_rhs;
 
   PETScWrappers::MPI::Vector       electron_density;
   PETScWrappers::MPI::Vector       hole_density;
+
+  PETScWrappers::MPI::Vector       old_electron_density;
+  PETScWrappers::MPI::Vector       old_hole_density;
+
+  PETScWrappers::MPI::Vector       rhs_hole_density;
+  PETScWrappers::MPI::Vector       rhs_electron_density;
 
   ConditionalOStream pcout;
 
@@ -166,27 +337,30 @@ void PoissonProblem<dim>::setup_system()
   locally_owned_dofs = dof_handler.locally_owned_dofs();
   locally_relevant_dofs = DoFTools::extract_locally_relevant_dofs(dof_handler);
 
-  // PETSC VECTORS DECLARATIONS 
+  // PETSC VECTORS DECLARATIONS AND REINIT
   current_solution.reinit(locally_owned_dofs, locally_relevant_dofs, mpi_communicator);  //ghosted
   newton_update.reinit(locally_owned_dofs, mpi_communicator);                            //non ghosted
-  system_rhs.reinit(locally_owned_dofs, mpi_communicator);                               //non ghosted
+  poisson_system_rhs.reinit(locally_owned_dofs, mpi_communicator);                       //non ghosted
 
   electron_density.reinit(locally_owned_dofs, locally_relevant_dofs, mpi_communicator);  // ghosted
   hole_density.reinit(locally_owned_dofs, locally_relevant_dofs, mpi_communicator);      // ghosted
+
+  old_electron_density.reinit(locally_owned_dofs, locally_relevant_dofs, mpi_communicator);  // ghosted
+  old_hole_density.reinit(locally_owned_dofs, locally_relevant_dofs, mpi_communicator);      // ghosted
+
+  rhs_electron_density.reinit(locally_owned_dofs, mpi_communicator);  // non ghosted
+  rhs_hole_density.reinit(locally_owned_dofs, mpi_communicator);      // non ghosted
  
-  // CONSTRAINTS 
-  
+  // CONSTRAINTS FOR THE POTENTIAL SOLUTION  
   constraints.clear();
   constraints.reinit(locally_relevant_dofs);    // SERVONO VERAMNETE LORO ?? i constraints normali, non nulli intendo
-  // VectorTools::interpolate_boundary_values(dof_handler, 1, Functions::ConstantFunction<dim>(V_TH*std::log(D/ni)), constraints);
-  // VectorTools::interpolate_boundary_values(dof_handler, 2, Functions::ConstantFunction<dim>(-V_TH*std::log(A/ni)), constraints);
-  VectorTools::interpolate_boundary_values(dof_handler, 1, Functions::ConstantFunction<dim>(0), constraints);
-  VectorTools::interpolate_boundary_values(dof_handler, 2, Functions::ConstantFunction<dim>(0), constraints);
+  VectorTools::interpolate_boundary_values(dof_handler, 1, Functions::ConstantFunction<dim>(V_TH*std::log(D/ni)), constraints);
+  VectorTools::interpolate_boundary_values(dof_handler, 2, Functions::ConstantFunction<dim>(-V_TH*std::log(A/ni)), constraints);
+  //VectorTools::interpolate_boundary_values(dof_handler, 1, Functions::ConstantFunction<dim>(0), constraints);
+  //VectorTools::interpolate_boundary_values(dof_handler, 2, Functions::ConstantFunction<dim>(0), constraints);
   constraints.close();
-
-
   
-  // ZERO CONSTRAINTS FOR NEWTON
+  // ZERO CONSTRAINTS FOR NEWTON POISSON
   zero_constraints.clear();
   zero_constraints.reinit(locally_relevant_dofs);
   VectorTools::interpolate_boundary_values(dof_handler, 1, Functions::ZeroFunction<dim>(), zero_constraints);
@@ -195,19 +369,21 @@ void PoissonProblem<dim>::setup_system()
   // VectorTools::interpolate_boundary_values(dof_handler, 2, Functions::ConstantFunction<dim>(-0.001), zero_constraints);
   zero_constraints.close();
 
-  //DoFTools::make_hanging_node_constraints(dof_handler, constraints);  // non li abbiamo
+  // CONSTRAINTS FOR DRIFT DIFFUSION SYSTEM
+  density_constraints.clear();
+  density_constraints.close();
 
-  // DYNAMIC SPARSITY PATTERN    
+  // DYNAMIC SPARSITY PATTERN POISSON PROBLEM AND RELATIVE MATRICES
   DynamicSparsityPattern dsp(locally_relevant_dofs);
   DoFTools::make_sparsity_pattern(dof_handler, dsp, zero_constraints, false); //noi mettavamo true;  prima era constraints e basta
+
   SparsityTools::distribute_sparsity_pattern(dsp,
                                              dof_handler.locally_owned_dofs(),
                                              mpi_communicator,
                                              locally_relevant_dofs);
-
   
-  system_matrix.clear(); // store the matrix that will be solved in the newton iterations
-  system_matrix.reinit(locally_owned_dofs, locally_owned_dofs, dsp,  mpi_communicator);
+  system_matrix_poisson.clear(); // store the matrix that will be solved in the newton iterations
+  system_matrix_poisson.reinit(locally_owned_dofs, locally_owned_dofs, dsp,  mpi_communicator);
 
   laplace_matrix.clear(); //store laplace matrix
   laplace_matrix.reinit(locally_owned_dofs, locally_owned_dofs, dsp,  mpi_communicator);
@@ -215,9 +391,31 @@ void PoissonProblem<dim>::setup_system()
   mass_matrix.clear();  //store mass matrix
   mass_matrix.reinit(locally_owned_dofs, locally_owned_dofs, dsp,  mpi_communicator);
 
-  density_matrix.clear(); // store the term: M(n+p)q0/V_TH
+  density_matrix.clear(); // store the term: M(n+p)q0/V_TH in the newton problem
   density_matrix.reinit(locally_owned_dofs, locally_owned_dofs, dsp,  mpi_communicator);
   
+  // DYNAMIC SPARSITY PATTERN DRIFT DIFFUSION PROBLEM AND RELATIVE MATRICES
+  DynamicSparsityPattern dsp_dd(locally_relevant_dofs);
+  DoFTools::make_sparsity_pattern(dof_handler, dsp_dd, density_constraints, false); //noi mettavamo true;  prima era constraints e basta
+
+  SparsityTools::distribute_sparsity_pattern(dsp_dd,
+                                             dof_handler.locally_owned_dofs(),
+                                             mpi_communicator,
+                                             locally_relevant_dofs);
+  
+  hole_drift_diffusion_matrix.clear();
+  hole_drift_diffusion_matrix.reinit(locally_owned_dofs, locally_owned_dofs, dsp_dd,  mpi_communicator);
+
+  electron_drift_diffusion_matrix.clear();
+  electron_drift_diffusion_matrix.reinit(locally_owned_dofs, locally_owned_dofs, dsp_dd,  mpi_communicator);
+
+  hole_matrix.clear();
+  hole_matrix.reinit(locally_owned_dofs, locally_owned_dofs, dsp_dd,  mpi_communicator);
+
+  electron_matrix.clear();
+  electron_matrix.reinit(locally_owned_dofs, locally_owned_dofs, dsp_dd,  mpi_communicator);
+
+
   pcout << " End of setup_system "<< std::endl<<std::endl;
 
 }
@@ -266,7 +464,7 @@ void PoissonProblem<dim>::setup_system()
 
 // }
 //-------------------------------------------------------------------------------------------------------------------------------------------------
-template <int dim>
+/*template <int dim>
 void PoissonProblem<dim>:: compute_densities(){   
   
   // in this function we compute the densities of electrons and holes starting from current solution that is the potential
@@ -313,26 +511,37 @@ void PoissonProblem<dim>:: compute_densities(){
 
   pcout << " End of compute densities "<< std::endl<<std::endl;
 
-}
+}*/
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------
 template <int dim>
-void PoissonProblem<dim>::initialize_densities()
+void PoissonProblem<dim>::initialization()
 {
 
   PETScWrappers::MPI::Vector temp_elec;
   PETScWrappers::MPI::Vector temp_hole;
+  PETScWrappers::MPI::Vector temp_pot;
 
 	temp_elec.reinit(locally_owned_dofs, mpi_communicator); 
-  temp_hole.reinit(locally_owned_dofs, mpi_communicator);  
+  temp_hole.reinit(locally_owned_dofs, mpi_communicator); 
+  temp_pot.reinit(locally_owned_dofs, mpi_communicator); 
 
   MappingQ1<dim> mapping;
 
   VectorTools::interpolate(mapping, dof_handler, ElectronInitialValues<dim>(), temp_elec);
   VectorTools::interpolate(mapping, dof_handler, HoleInitialValues<dim>(), temp_hole);
+  VectorTools::interpolate(mapping, dof_handler, PotentialValues<dim>(), temp_pot);
+
+  constraints.distribute(temp_pot);
+  density_constraints.distribute(temp_hole);
+  density_constraints.distribute(temp_elec);
 	 
-  electron_density = temp_elec;
-  hole_density = temp_hole;
+  old_electron_density = temp_elec;
+  old_hole_density = temp_hole;
+  current_solution = temp_pot;
+
+  pcout << "end of initialization" <<std::endl;
 }
+
 //-----------------------------------------------------------------------------------------------------------------------------------------------
 template <int dim>
 void PoissonProblem<dim>::assemble_laplace_matrix(bool use_nonzero_constraints)
@@ -442,34 +651,33 @@ void PoissonProblem<dim>::assemble_mass_matrix(bool use_nonzero_constraints)
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
 
 template <int dim>
-void PoissonProblem<dim>::assemble_system_matrix(bool use_nonzero_constraints)
+void PoissonProblem<dim>::assemble_nonlinear_poisson(bool use_nonzero_constraints)
 {
   //BUILDING SYSTEM MATRIX
 
   // initialize both matrices 
-  system_matrix = 0;
+  system_matrix_poisson = 0;
   density_matrix = 0;
   
+  // temporary vectors that stores old densities
   PETScWrappers::MPI::Vector temp_elec; //temporary non-ghosted vector that stores electorn_density
   PETScWrappers::MPI::Vector temp_hole; //temporary non-ghosted vector that stores hole_density
   
 	temp_elec.reinit(locally_owned_dofs, mpi_communicator);
   temp_hole.reinit(locally_owned_dofs, mpi_communicator);
 
-  temp_elec = electron_density;
-  temp_hole = hole_density;
+  temp_elec = old_electron_density;
+  temp_hole = old_hole_density;
 
   double new_value = 0;
   
   // generate the term:  (n+p)*MASS_MAT   lumped version stored in density_matrix
 
-  // for (auto iter = locally_owned_dofs.begin(); iter != locally_owned_dofs.end(); ++iter){ 
+  for (auto iter = locally_owned_dofs.begin(); iter != locally_owned_dofs.end(); ++iter){  
 
-  for (const auto& iter : locally_owned_dofs){ 
+    new_value = mass_matrix(*iter, *iter) * (temp_elec[*iter] + temp_hole[*iter]);
 
-    new_value = mass_matrix(iter, iter) * (temp_elec[iter] + temp_hole[iter]);
-
-    density_matrix.set(iter,iter,new_value);
+    density_matrix.set(*iter,*iter,new_value);
 
   }
 
@@ -478,17 +686,18 @@ void PoissonProblem<dim>::assemble_system_matrix(bool use_nonzero_constraints)
   pcout << " The L_INF norm of the density matrix is "<<density_matrix.linfty_norm() <<std::endl;
   pcout << " The L_FROB norm of the density matrix is "<<density_matrix.frobenius_norm() <<std::endl<<std::endl;
 
-  system_matrix.add(eps_r * eps_0, laplace_matrix); //ho checkato che passi giusto.  This term is: SYS_MAT = SYS_MAT +  eps*A
+  system_matrix_poisson.add(eps_r * eps_0, laplace_matrix); //ho checkato che passi giusto.  This term is: SYS_MAT = SYS_MAT +  eps*A
 
-  system_matrix.add(q0 / V_TH, density_matrix);   // SYS_MAT = SYS_MAT + q0/V_TH * (n+p)*MASS_MAT
-
-  
-  pcout << " The L_INF norm of the assembled matrix is "<<system_matrix.linfty_norm() <<std::endl;
-  pcout << " The L_FROB norm of the assembled matrix is "<<system_matrix.frobenius_norm() <<std::endl<<std::endl;
+  system_matrix_poisson.add(q0 / V_TH, density_matrix);   // SYS_MAT = SYS_MAT + q0/V_TH * (n+p)*MASS_MAT
 
   
-  // BUILDING SYSTEM RHS
-  system_rhs = 0;
+  pcout << " The L_INF norm of the assembled matrix is "<<system_matrix_poisson.linfty_norm() <<std::endl;
+  pcout << " The L_FROB norm of the assembled matrix is "<<system_matrix_poisson.frobenius_norm() <<std::endl<<std::endl;
+
+  
+  // BUILDING  POISSON SYSTEM RHS
+
+  poisson_system_rhs = 0;
 
   PETScWrappers::MPI::Vector temp;
   PETScWrappers::MPI::Vector doping;     //store the term N, that is 1e+22 on the left side and 1e-22 on the right
@@ -506,26 +715,28 @@ void PoissonProblem<dim>::assemble_system_matrix(bool use_nonzero_constraints)
   doping += temp_hole;
   doping -= temp_elec;
 
-  // basically: temp = (n -p -N)
+  // basically: temp = (N -n +p)
 
-  mass_matrix.vmult(temp,doping);  // temp = MASS*(n-p-N)
+  mass_matrix.vmult(temp,doping);  // temp = MASS*(N -n +p)
 
-  system_rhs.add(q0, temp);     // SYS_RHS = -q0*MASS*(n-p-N)
+  poisson_system_rhs.add(q0, temp);     // SYS_RHS = q0*MASS*(N -n +p)
 
   laplace_matrix.vmult(temp, current_solution); // temp = A*phi
 
-  system_rhs.add(- eps_r * eps_0, temp);    //SYS_RHS = SYS_RHS - eps*A*phi
+  poisson_system_rhs.add(- eps_r * eps_0, temp);    //SYS_RHS = SYS_RHS - eps*A*phi
 
   const AffineConstraints<double> &constraints_used =
             use_nonzero_constraints ? constraints : zero_constraints;
 
-  constraints_used.distribute(system_rhs);
+  constraints_used.distribute(poisson_system_rhs);
+
+  pcout<<" End assemble of non linear poisson problem"<<std::endl;
 
 }
 //------------------------------------------------------------------------------------------------------------------------------------------------
 
 template <int dim>
-void PoissonProblem<dim>::solve(bool use_nonzero_constraints)
+void PoissonProblem<dim>::solve_poisson(bool use_nonzero_constraints)
 {
   // NB: Assemble funziona e riempie con elementi dell'ordine di 1e-10 sia la matrice che il rhs del system
   // NB: Solve sembrerebbe funzionare, non sono sicuro su quali setting mettere e quale solver usare,
@@ -533,7 +744,12 @@ void PoissonProblem<dim>::solve(bool use_nonzero_constraints)
   
   SolverControl sc_p(dof_handler.n_dofs(), 1e-10);     
   PETScWrappers::SparseDirectMUMPS solverMUMPS(sc_p);     
-  solverMUMPS.solve(system_matrix, newton_update, system_rhs);
+  solverMUMPS.solve(system_matrix_poisson, newton_update, poisson_system_rhs);
+
+  const AffineConstraints<double> &constraints_used =
+            use_nonzero_constraints ? constraints : zero_constraints;
+
+  constraints_used.distribute(newton_update);
 
   //CLUMPING
   double result=0;
@@ -541,32 +757,26 @@ void PoissonProblem<dim>::solve(bool use_nonzero_constraints)
   // for (auto iter = locally_owned_dofs.begin(); iter != locally_owned_dofs.end(); ++iter){ 
   for (const auto& iter : locally_owned_dofs){ 
 
-  if (newton_update[iter] < -V_TH) {
-    result = -V_TH;
-  } else if (newton_update[iter] > V_TH) {
-    result = V_TH;
-  } else {
-    result = newton_update[iter];
-  }
+    if (newton_update[iter] < -V_TH) {
+      result = -V_TH;
+    } else if (newton_update[iter] > V_TH) {
+      result = V_TH;
+    } else {
+      result = newton_update[iter];
+    }
 
-  newton_update[iter] = result;
+    newton_update[iter] = result;
 
   }
 
   newton_update.compress(VectorOperation::insert); 
-
-  const AffineConstraints<double> &constraints_used =
-            use_nonzero_constraints ? constraints : zero_constraints;
-
-  constraints_used.distribute(newton_update);
   
   PETScWrappers::MPI::Vector temp;
   temp.reinit(locally_owned_dofs, mpi_communicator);
 
-
   temp = current_solution;
-  temp.add(1, newton_update); //Deve essere uno se no la prima B.C. viene moltiplicata per 0.8
-  //temp += newton_update;   // per adesso noi aggiorniamo cosi: phi_k+1 = phi_k + a * delta_phi. dove a =1, ma è una scelta
+  temp.add(0.8, newton_update); 
+  // per adesso noi aggiorniamo cosi: phi_k+1 = phi_k + a * delta_phi. dove a =1, ma è una scelta
   current_solution = temp;
 
   pcout << "L2 norm of the current solution: " << current_solution.l2_norm() << std::endl;
@@ -575,68 +785,27 @@ void PoissonProblem<dim>::solve(bool use_nonzero_constraints)
   pcout << " End of solve "<< std::endl<<std::endl;
   
 }
-
-//-----------------------------------------------------------------------------------------------------------------------------------------------------
-
+//--------------------------------------------------------------------------------------------------------------------------------------------------
 template <int dim>
-void PoissonProblem<dim>::output_results(const unsigned int cycle)
-{
+void PoissonProblem<dim>::one_cycle_newton_poisson(bool use_nonzero_constraints,
+                                                   const unsigned int max_iter_newton, 
+                                                   const double toll_newton){
 
-  DataOut<dim> data_out;
-  data_out.attach_dof_handler(dof_handler);
-  data_out.add_data_vector(current_solution, "phi");
-  // data_out.add_data_vector(electron_density, "n");
-  // data_out.add_data_vector(hole_density, "p");
-  // data_out.add_data_vector(newton_update, "d_phi");
+  unsigned int counter = 0; // it keeps track of newton iteration
 
-  Vector<float> subdomain(triangulation.n_active_cells());
-  for (unsigned int i = 0; i < subdomain.size(); ++i)
-    subdomain(i) = triangulation.locally_owned_subdomain();
-  data_out.add_data_vector(subdomain, "subdomain");
+  pcout << " -- START ONE CYCLE OF NEWTON METHOD --"<< std::endl<<std::endl<<std::endl;
 
-  data_out.build_patches();
+  double increment_norm = std::numeric_limits<double>::max(); // the increment norm is + inf
 
-  data_out.write_vtu_with_pvtu_record(
-    "./", "solution", cycle, mpi_communicator, 2, 1);
-
-  pcout << " End of output_results"<< std::endl<<std::endl;
-
-}
-
-//---------------------------------------------------------------------------------------------------------------------------------------------------
-
-template <int dim>
-void PoissonProblem<dim>::run(const unsigned int max_iter, const double toll) // tolerance linked to the magnitude of the newton update
-{
+  pcout << " Initial Newton Increment Norm dphi: " << increment_norm << std::endl<<std::endl;
   
-  unsigned int counter = 0; // it keeps track of newton iter
+  bool non_zero_constraints; //in order to choose the BCs
 
-  pcout << " -- START NEWTON METHOD --"<< std::endl<<std::endl<<std::endl;
-
-  pcout << "  SETUP SYSTEM "<< std::endl;
-  setup_system();
-  
-  pcout << "  INITIALIZATION POTENTIAL AND DENSITIES "<< std::endl;
-  //initialize_current_solution();
-  compute_densities();
-  
-  
-  pcout << "  BUILD LAPLACE - MASS MATRICES "<< std::endl;
-  // assemble_laplace_matrix(true);
-  // assemble_mass_matrix(true);
-
-  double increment_norm = std::numeric_limits<double>::max(); // FIN QUI CORRETTO, VISTO SU PARAVIEW CHE LE BC SONO RISPETTATE E IL POTENZIALE E GIUSTO
-
-  pcout << " Initial Increment Norm: " << increment_norm << std::endl<<std::endl;
-  
-  bool non_zero_constraints;
-
-  while(counter < max_iter && increment_norm > toll){
+  while(counter < max_iter_newton && increment_norm > toll_newton){ //METTERE LE MATRICI FUORIII
 
     pcout << " NEWTON ITERATION NUMBER: "<< counter +1<<std::endl<<std::endl;
-    pcout << " Assemble System Matrix"<< std::endl;
+    pcout << " Assemble System Poisson Matrix"<< std::endl;
 
-    
     if(counter == 0){
 
       non_zero_constraints = true;
@@ -654,27 +823,344 @@ void PoissonProblem<dim>::run(const unsigned int max_iter, const double toll) //
       
     }
     
+    assemble_nonlinear_poisson(non_zero_constraints);
     
-    assemble_system_matrix(non_zero_constraints);
+    //solve newton iteration and update the potential
+    pcout << " Solve Newton cycle"<< std::endl;
+    solve_poisson(non_zero_constraints); // dentro c'e anche il clamping
 
-    pcout << " Solve System"<< std::endl;
-    solve(non_zero_constraints); // dentro c'e anche il clamping
-    compute_densities();
-  
+    //update the densities
+    PETScWrappers::MPI::Vector old_temp_elec;
+    PETScWrappers::MPI::Vector old_temp_hole;
+
+    old_temp_elec.reinit(locally_owned_dofs, mpi_communicator);
+    old_temp_hole.reinit(locally_owned_dofs, mpi_communicator);
+
+    old_temp_elec  = old_electron_density;
+    old_temp_hole  = old_hole_density;
+
+
+    const IndexSet& local_elements = old_temp_elec.locally_owned_elements();
+    
+
+    for (const auto& i : local_elements){ 
+    
+      old_temp_elec(i) *= std::exp(newton_update(i)/V_TH);   //bisogna imporre constraints ?
+      old_temp_hole(i) *= std::exp(-newton_update(i)/V_TH);
+
+    }
+    
+    // Make sure to have updated ghost values to synchronize across MPI processes
+    old_temp_elec.update_ghost_values();
+    old_temp_hole.update_ghost_values();
+
+    old_temp_elec.compress(VectorOperation::insert);
+    old_temp_hole.compress(VectorOperation::insert);
+    
+    old_electron_density = old_temp_elec;
+    old_hole_density = old_temp_hole;
+
     increment_norm = newton_update.l2_norm();
     pcout << " Update Increment: "<<increment_norm<<std::endl<<std::endl;
     counter ++;
+
   }
+
+  if(counter == max_iter_newton){
+    pcout<< " MAX NUMBER OF NEWTON ITERATIONS REACHED!"<<std::endl;
+  }
+
+
+  pcout << " end one cycle of newton method "<< std::endl<<std::endl;
+
+}
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------
+
+template <int dim>
+void PoissonProblem<dim>::assemble_drift_diffusion_matrix()
+{
+
+	rhs_electron_density = 0;
+	rhs_hole_density = 0;
+	hole_drift_diffusion_matrix = 0;
+	electron_drift_diffusion_matrix = 0;
+
+  const unsigned int vertices_per_cell = 4; // 4 sono anche i dof for cell
+  std::vector<types::global_dof_index> local_dof_indices(vertices_per_cell);
+
+  const unsigned int t_size = 3;
+
+  Vector<double> cell_rhs(t_size);
+  FullMatrix<double> A(t_size,t_size), B(t_size,t_size), neg_A(t_size,t_size), neg_B(t_size,t_size);
+
+  std::vector<types::global_dof_index> A_local_dof_indices(t_size);
+  std::vector<types::global_dof_index> B_local_dof_indices(t_size);
+
+  for (const auto &cell : dof_handler.active_cell_iterators())
+    {
+      if (cell->is_locally_owned()){
+
+        A = 0;
+        B = 0;
+        neg_A = 0;
+        neg_B = 0;
+        cell_rhs = 0;
+        
+        cell->get_dof_indices(local_dof_indices);
+
+        // Lexicographic ordering
+        const Point<dim> v1 = cell->vertex(2); // top left
+        const Point<dim> v2 = cell->vertex(3); // top right
+        const Point<dim> v3 = cell->vertex(0); // bottom left
+        const Point<dim> v4 = cell->vertex(1); // bottom right
+
+        const double u1 = -current_solution[local_dof_indices[2]]/V_TH;
+        const double u2 = -current_solution[local_dof_indices[3]]/V_TH;
+        const double u3 = -current_solution[local_dof_indices[0]]/V_TH;
+        const double u4 = -current_solution[local_dof_indices[1]]/V_TH;
+
+        const double l_alpha = side_length(v1,v4);
+        const double l_beta = side_length(v2,v3);
+        
+        const double alpha21 = (u1 - u2);
+        const double alpha42 = (u2 - u4);
+        const double alpha34 = (u4 - u3);
+        const double alpha13 = (u3 - u1);
+        
+        const double neg_alpha21 =  - (u1 - u2);
+        const double neg_alpha42 =  - (u2 - u4);
+        const double neg_alpha34 = - (u4 - u3);
+        const double neg_alpha13 = - (u3 - u1);
+
+        if (l_alpha >= l_beta) { // l_alpha is the longest diagonal: split by beta
+              const double alpha23 =  (u3 - u2);
+              const double neg_alpha23 = - (u3 - u2);
+              //cout << "Alpha 23 is: " << alpha23 << endl;
+              
+              // Triangle A:
+              A= compute_triangle_matrix(v2,v1,v3, alpha21, alpha13, -alpha23, Dp);
+              neg_A= compute_triangle_matrix(v2,v1,v3, neg_alpha21, neg_alpha13, -neg_alpha23, Dn);
+              
+              // Triangle B:
+              B = compute_triangle_matrix(v3,v4,v2, alpha34, alpha42, alpha23, Dp);
+              neg_B = compute_triangle_matrix(v3,v4,v2, neg_alpha34, neg_alpha42, neg_alpha23, Dn);
+              
+              // Matrix assemble
+              A_local_dof_indices[0] = local_dof_indices[3];
+              A_local_dof_indices[1] = local_dof_indices[2];
+              A_local_dof_indices[2] = local_dof_indices[0];
+              
+              B_local_dof_indices[0] = local_dof_indices[0];
+              B_local_dof_indices[1] = local_dof_indices[1];
+              B_local_dof_indices[2] = local_dof_indices[3];
+
+            } else { // l_beta is the longest diagonal: split by alpha
+              const double alpha14 = (u4 - u1);
+              const double neg_alpha14 = - (u4 - u1);
+              //cout << "Alpha 14 is: " << alpha14 << endl;
+              
+              // Triangle A:
+              A = compute_triangle_matrix(v4,v2,v1, alpha42, alpha21, alpha14, Dp);
+              neg_A = compute_triangle_matrix(v4,v2,v1, neg_alpha42, neg_alpha21, neg_alpha14, Dn);
+              
+              // Triangle B:
+              B = compute_triangle_matrix(v1,v3,v4, alpha13, alpha34, -alpha14, Dp);
+              neg_B = compute_triangle_matrix(v1,v3,v4, neg_alpha13, neg_alpha34, -neg_alpha14, Dn);
+              
+              A_local_dof_indices[0] = local_dof_indices[1];
+              A_local_dof_indices[1] = local_dof_indices[3];
+              A_local_dof_indices[2] = local_dof_indices[2];
+              
+              B_local_dof_indices[0] = local_dof_indices[2];
+              B_local_dof_indices[1] = local_dof_indices[0];
+              B_local_dof_indices[2] = local_dof_indices[1];
+              
+				     }
+        
+				constraints.distribute_local_to_global(A, cell_rhs,  A_local_dof_indices, hole_drift_diffusion_matrix, rhs_hole_density);
+				constraints.distribute_local_to_global(B, cell_rhs,  B_local_dof_indices, hole_drift_diffusion_matrix, rhs_hole_density);
+
+				constraints.distribute_local_to_global(neg_A, cell_rhs,  A_local_dof_indices, electron_drift_diffusion_matrix, rhs_electron_density);
+				constraints.distribute_local_to_global(neg_B, cell_rhs,  B_local_dof_indices, electron_drift_diffusion_matrix, rhs_electron_density);
+
+        }
+		  }
+    
+    
+    hole_drift_diffusion_matrix.compress(VectorOperation::add);
+    electron_drift_diffusion_matrix.compress(VectorOperation::add);
+    
+    rhs_hole_density.compress(VectorOperation::add);
+    rhs_electron_density.compress(VectorOperation::add);
+
+    pcout << " End of assembling drift diffusion matrix"<< std::endl<<std::endl;
+
+}
+//-----------------------------------------------------------------------------------------------------------------------------------------------------
+template <int dim>
+void PoissonProblem<dim>::apply_drift_diffusion_boundary_conditions() //forse non serve per le nostre inizializzazioni
+{
+  PETScWrappers::MPI::Vector temp_elec;
+  PETScWrappers::MPI::Vector temp_hole;     
+   
+	temp_elec.reinit(locally_owned_dofs, mpi_communicator);
+  temp_hole.reinit(locally_owned_dofs, mpi_communicator);
+
+  temp_elec = electron_density;
+  temp_hole = hole_density;
+
+  MappingQ1<dim> mapping;
   
-  output_results(counter);
+  std::map<types::global_dof_index, double> emitter_boundary_values, collector_boundary_values;
 
-  if(counter == max_iter){
-    pcout<< " ATTENTION! YOU REACH MAX NUMBER OF ITERATIONS!"<<std::endl;
+  VectorTools::interpolate_boundary_values(mapping, dof_handler,1, Functions::ConstantFunction<dim>(N1), emitter_boundary_values);
+  MatrixTools::apply_boundary_values(emitter_boundary_values, electron_matrix, temp_elec, rhs_electron_density);
+
+  VectorTools::interpolate_boundary_values(mapping, dof_handler,2, Functions::ConstantFunction<dim>(N2), collector_boundary_values);
+  MatrixTools::apply_boundary_values(collector_boundary_values, electron_matrix, temp_elec, rhs_electron_density);
+
+  VectorTools::interpolate_boundary_values(mapping, dof_handler,1, Functions::ConstantFunction<dim>(P1), emitter_boundary_values);
+  MatrixTools::apply_boundary_values(emitter_boundary_values, hole_matrix, temp_hole, rhs_hole_density);
+
+  VectorTools::interpolate_boundary_values(mapping, dof_handler,2, Functions::ConstantFunction<dim>(P2), collector_boundary_values);
+  MatrixTools::apply_boundary_values(collector_boundary_values, hole_matrix, temp_hole, rhs_hole_density);
+  
+  electron_density = temp_elec;
+  hole_density = temp_hole;
+
+  pcout<<" end of apply boundary conditions for drift diffusion"<<std::endl<<std::endl;
+
+}
+//-----------------------------------------------------------------------------------------------------------------------------------------------------
+template <int dim>
+void PoissonProblem<dim>::solve_drift_diffusion()
+{
+  PETScWrappers::MPI::Vector temp_elec;
+  PETScWrappers::MPI::Vector temp_hole;
+
+  temp_elec.reinit(locally_owned_dofs, mpi_communicator);
+  temp_hole.reinit(locally_owned_dofs, mpi_communicator);
+  
+  SolverControl sc_hole(dof_handler.n_dofs(), 1e-10);
+  SolverControl sc_elec(dof_handler.n_dofs(), 1e-10); 
+  
+  PETScWrappers::SparseDirectMUMPS solverMUMPS_hole(sc_hole); 
+  PETScWrappers::SparseDirectMUMPS solverMUMPS_elec(sc_elec); 
+
+  solverMUMPS_hole.solve(hole_matrix, temp_hole, rhs_hole_density);
+  solverMUMPS_elec.solve(electron_matrix, temp_elec, rhs_electron_density);
+
+  constraints.distribute(temp_hole);
+  constraints.distribute(temp_elec);
+
+  hole_density = temp_hole;
+  electron_density = temp_elec;
+
+
+  pcout << " End of solve drift diffusion"<< std::endl<<std::endl;
+}
+//-----------------------------------------------------------------------------------------------------------------------------------------------------
+
+template <int dim>
+void PoissonProblem<dim>::output_results(const unsigned int cycle)
+{
+
+  DataOut<dim> data_out;
+  data_out.attach_dof_handler(dof_handler);
+  data_out.add_data_vector(current_solution, "phi");
+  data_out.add_data_vector(electron_density, "n");
+  data_out.add_data_vector(hole_density, "p");
+  
+
+  Vector<float> subdomain(triangulation.n_active_cells());
+  for (unsigned int i = 0; i < subdomain.size(); ++i)
+    subdomain(i) = triangulation.locally_owned_subdomain();
+  data_out.add_data_vector(subdomain, "subdomain");
+
+  data_out.build_patches();
+
+  data_out.write_vtu_with_pvtu_record(
+    "./", "solution", cycle, mpi_communicator, 2, 1);
+
+
+}
+
+//---------------------------------------------------------------------------------------------------------------------------------------------------
+
+template <int dim>
+void PoissonProblem<dim>::run() 
+{
+  unsigned int cycle_drift_diffusion = 0;
+  unsigned int max_drift_diffusion_iterations = 20;
+  double hole_tol = 1.e-10;
+  double electron_tol = 1.e-10;
+
+  double hole_err = hole_tol + 1.;
+  double electron_err = electron_tol + 1.;
+
+  unsigned int max_newton_iterations = 80;
+  double tol_newton = 1e-10;
+
+  pcout << "-- START OF DRIFT DIFFUSION PROBLEM --" <<std::endl<<std::endl;
+
+  pcout<< " SETUP SYSTEM" <<std::endl;
+  setup_system();
+  PETScWrappers::MPI::Vector temp;
+	temp.reinit(locally_owned_dofs, mpi_communicator);
+
+  pcout<< " INITIALIZATION OF VARIABLES" <<std::endl;
+  initialization();
+  
+  output_results(cycle_drift_diffusion); // in order to see initial conditions
+  
+  // ho fatto un giro di run fino a questo punto e le IC con le relative BCs sono giuste
+
+  bool use_nonzero_constraints = true;
+  
+  while ( (hole_err > hole_tol || electron_err > electron_tol) && cycle_drift_diffusion < max_drift_diffusion_iterations)
+  {
+    ++cycle_drift_diffusion;
+    pcout<< " CYCLE NUMBER " <<cycle_drift_diffusion<<" OF DRIFT DIFFUSION"<<std::endl;
+    
+    pcout<< " NEWTON ITERATION FOR POISSON" <<std::endl;
+    one_cycle_newton_poisson(use_nonzero_constraints, max_newton_iterations, tol_newton);
+
+    pcout<< " ASSEMBLE DRIFT DIFFUSION MATRICES" <<std::endl;
+    assemble_drift_diffusion_matrix();
+
+    hole_matrix.copy_from(hole_drift_diffusion_matrix);
+    electron_matrix.copy_from(electron_drift_diffusion_matrix);
+
+    pcout<< " APPLY BOUNDARY CONDITOINS"<<std::endl;
+    apply_drift_diffusion_boundary_conditions();
+
+    pcout<< " SOLVE DRIFT DIFFUSION PROBLEM"<<std::endl;
+    solve_drift_diffusion();
+
+    pcout<< "UPDATE ERROR FOR CONVERGENCE"<<std::endl;
+
+    electron_tol = 1.e-10*old_electron_density.linfty_norm();
+    hole_tol = 1.e-10*old_hole_density.linfty_norm();
+
+    temp = hole_density;
+    temp -= old_hole_density;
+    hole_err = temp.linfty_norm();
+
+    temp = electron_density;
+    temp -= old_electron_density;
+    electron_err = temp.linfty_norm();
+
+    output_results(cycle_drift_diffusion);
+
+    old_hole_density = hole_density;
+    old_electron_density = electron_density;
+
+    pcout<< " ## ERRORS ##:"<<std::endl;
+    pcout<<" ELECTRON DENSITY ERROR:"<< electron_err<<std::endl;
+    pcout<<" HOLE DENSITY ERROR:"<< hole_err<<std::endl;
+    
+    use_nonzero_constraints = false;
   }
-
-  pcout << "  OUTPUT RESULT "<< std::endl;
-
-  pcout << " -- END NEWTON METHOD -- "<< std::endl;
   
 }
 
@@ -696,8 +1182,9 @@ void create_triangulation(parallel::distributed::Triangulation<dim> &tria)
   pcout << " Grid read correctly "<< std::endl;
 
 }
-  
-
+//---------------------------------------------------------------------------------------------------------------------------------------------------------------
+//COMMENTO: il codice gira ma 1) non rispetta BCs di nessuno
+//                            2) errore delle densità enorme
 //######################### MAIN #############################################################################################################
 
 
@@ -714,7 +1201,9 @@ int main(int argc, char *argv[])
       create_triangulation(tria);
       
       PoissonProblem<2> poisson_problem_2d(tria);
-      poisson_problem_2d.run(500, 1e-18);
+      
+      poisson_problem_2d.run();
+      
     
     }
   catch (std::exception &exc)

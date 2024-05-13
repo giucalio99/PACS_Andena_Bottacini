@@ -1,0 +1,10 @@
+/mnt/d/IPROP_PROJECT/PACS_Andena_Bottacini/Codici/Menessini_PN_Original/build/CMakeFiles/PN.dir
+/mnt/d/IPROP_PROJECT/PACS_Andena_Bottacini/Codici/Menessini_PN_Original/build/CMakeFiles/run.dir
+/mnt/d/IPROP_PROJECT/PACS_Andena_Bottacini/Codici/Menessini_PN_Original/build/CMakeFiles/debug.dir
+/mnt/d/IPROP_PROJECT/PACS_Andena_Bottacini/Codici/Menessini_PN_Original/build/CMakeFiles/release.dir
+/mnt/d/IPROP_PROJECT/PACS_Andena_Bottacini/Codici/Menessini_PN_Original/build/CMakeFiles/runclean.dir
+/mnt/d/IPROP_PROJECT/PACS_Andena_Bottacini/Codici/Menessini_PN_Original/build/CMakeFiles/distclean.dir
+/mnt/d/IPROP_PROJECT/PACS_Andena_Bottacini/Codici/Menessini_PN_Original/build/CMakeFiles/strip_comments.dir
+/mnt/d/IPROP_PROJECT/PACS_Andena_Bottacini/Codici/Menessini_PN_Original/build/CMakeFiles/info.dir
+/mnt/d/IPROP_PROJECT/PACS_Andena_Bottacini/Codici/Menessini_PN_Original/build/CMakeFiles/edit_cache.dir
+/mnt/d/IPROP_PROJECT/PACS_Andena_Bottacini/Codici/Menessini_PN_Original/build/CMakeFiles/rebuild_cache.dir

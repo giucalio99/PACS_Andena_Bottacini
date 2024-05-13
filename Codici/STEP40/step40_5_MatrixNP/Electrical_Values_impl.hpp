@@ -53,7 +53,7 @@ double ElectronInitialValues<dim>::value(const Point<dim> & p, const unsigned in
     Assert(dim == 2, ExcNotImplemented());
     
     //check the x component
-    if (p[0] <= 0.5*L)
+    if (p[0] <= 0.45*L)
     return N1;
     else
     return N2;
@@ -72,7 +72,7 @@ double HoleInitialValues<dim>::value(const Point<dim> & p, const unsigned int co
     Assert(dim == 2, ExcNotImplemented());
     
     // check the x coordinate of the point
-    if (p[0] <= 0.50*L)
+    if (p[0] <= 0.55*L)
     return P1;
     else
     return P2;

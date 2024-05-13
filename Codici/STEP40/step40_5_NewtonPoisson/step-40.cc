@@ -70,6 +70,7 @@
 #include <limits>
 
 #include "Electrical_Constants.hpp"    // FUNZIONA ANCHE SE NON E NEL CMAKEFILE TXT ??
+#include "Electrical_Values.hpp"
 
 // COMMENTO DI QUESTO QUINTO SUB-STEP (OUR MESH) VERSO NEWTON POISSON
 // per i commenti vedere step40 vanilla è scritto molto bene. in questo sub-step noi non raffiniamo la mesh
@@ -200,10 +201,15 @@ void PoissonProblem<dim>:: initialize_current_solution(){
  
   PETScWrappers::MPI::Vector temp;
 	temp.reinit(locally_owned_dofs, mpi_communicator);   //non ghosted, serve per imporre i valori delle BCs
-	temp = current_solution; //current solution here is zero by default constructor
-	  
+
+  //temp=0;
+
+  //MappingQ1<dim> mapping;
+
+  //VectorTools::interpolate(mapping, dof_handler, PotentialValues<dim>(), temp);
+
   std::map<types::global_dof_index, double> boundary_values;
-  
+  /*
   VectorTools::interpolate_boundary_values(dof_handler,
                                            1,
                                            Functions::ConstantFunction<dim>(V_TH*std::log(D/ni)),
@@ -213,7 +219,18 @@ void PoissonProblem<dim>:: initialize_current_solution(){
                                            2,
                                            Functions::ConstantFunction<dim>(-V_TH*std::log(A/ni)),
                                            boundary_values);
+  */
   
+  VectorTools::interpolate_boundary_values(dof_handler,
+                                           1,
+                                           Functions::ZeroFunction<dim>(),
+                                           boundary_values);
+
+  VectorTools::interpolate_boundary_values(dof_handler,
+                                           2,
+                                           Functions::ZeroFunction<dim>(),
+                                           boundary_values);
+
   for (auto &boundary_value : boundary_values){
     temp(boundary_value.first) = boundary_value.second;
   }
@@ -286,7 +303,7 @@ void PoissonProblem<dim>::assemble_system()
                   }             
                   
                   // RHS F
-                  cell_rhs(i) +=  eps_0*eps_r*old_solution_gradients[q_point]*fe_values.shape_grad(i,q_point)*fe_values.JxW(q_point) - \
+                  cell_rhs(i) +=  -eps_0*eps_r*old_solution_gradients[q_point]*fe_values.shape_grad(i,q_point)*fe_values.JxW(q_point) - \
                                   q0*(ni*std::exp(old_solution[q_point]/V_TH)- ni*std::exp(-old_solution[q_point]/V_TH))*fe_values.shape_value(i,q_point) * fe_values.JxW(q_point)+\
                                   q0*doping*fe_values.shape_value(i,q_point)*fe_values.JxW(q_point); //qo*N(x) integrato
                   
@@ -295,10 +312,10 @@ void PoissonProblem<dim>::assemble_system()
 
         cell->get_dof_indices(local_dof_indices);
         zero_constraints.distribute_local_to_global(cell_matrix,
-                                               cell_rhs,
-                                               local_dof_indices,
-                                               system_matrix,
-                                               system_rhs);
+                                                    cell_rhs,
+                                                    local_dof_indices,
+                                                    system_matrix,
+                                                    system_rhs);
         
       }
 
@@ -327,6 +344,26 @@ void PoissonProblem<dim>::solve()
   SolverControl sc_p(dof_handler.n_dofs(), 1e-10);     
   PETScWrappers::SparseDirectMUMPS solverMUMPS(sc_p);     
   solverMUMPS.solve(system_matrix, newton_update, system_rhs);
+
+  //CLUMPING
+  double result=0;
+  
+  for (auto iter = locally_owned_dofs.begin(); iter != locally_owned_dofs.end(); ++iter){ 
+  
+  if (newton_update[*iter] < -V_TH) {
+    result = -V_TH;
+  } else if (newton_update[*iter] > V_TH) {
+    result = V_TH;
+  } else {
+    result = newton_update[*iter];
+  }
+
+  newton_update[*iter] = result;
+
+  }
+
+  newton_update.compress(VectorOperation::insert);
+  zero_constraints.distribute(newton_update);
   
   PETScWrappers::MPI::Vector temp(locally_owned_dofs, mpi_communicator);
   temp = current_solution;
@@ -395,9 +432,6 @@ void PoissonProblem<dim>::run(const unsigned int max_iter, const double toll) //
     pcout << " Solve System"<< std::endl;
     solve();
 
-		
-
-      
 
     residual_norm = newton_update.l2_norm();
     pcout << " Update Residual: "<<residual_norm<<std::endl<<std::endl;

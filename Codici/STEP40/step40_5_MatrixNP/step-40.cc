@@ -94,6 +94,7 @@ private:
   void setup_system(); 
 
   void initialize_current_solution();
+  void initialize_densities();
   void compute_densities();
 
   void assemble_laplace_matrix();
@@ -102,7 +103,6 @@ private:
   void assemble_system_matrix();
 
   void solve();
-  void clumping();
 
   void output_results(const unsigned int cycle);
 
@@ -224,7 +224,7 @@ void PoissonProblem<dim>:: initialize_current_solution(){
   //    ergo in constrints ho effettivamente i valori delle BC legate ai vari dof dei processori VEDERE CARTELLA OUTPUT AFFINE CONST STEP PRECEDENTE.
   //    Ciononostante noi poi non usiamo constraints per imporre le boundary conditions
   //NB: finalmente in current solution ci sono dei valori sensati, una volta impostate le BCs ha norma L2 non banale e 
-  //    norma L_INF coerente con i valori delle BCs.  QUESTA FUNCTION FA IL SUO
+  //    norma L_INF coerente con i valori delle BCs.
   //    unica cosa brutta l'uso di un temp vector
  
   PETScWrappers::MPI::Vector temp;
@@ -259,38 +259,64 @@ void PoissonProblem<dim>:: initialize_current_solution(){
 }
 //-------------------------------------------------------------------------------------------------------------------------------------------------
 template <int dim>
+void PoissonProblem<dim>:: initialize_densities(){   
+
+  PETScWrappers::MPI::Vector temp_initial_elec;
+  PETScWrappers::MPI::Vector temp_initial_hole;    
+  
+	temp_initial_elec.reinit(locally_owned_dofs, mpi_communicator);
+  temp_initial_hole.reinit(locally_owned_dofs, mpi_communicator);
+
+  temp_initial_elec = 0;
+  temp_initial_hole = 0;
+
+  MappingQ1<dim> mapping;
+
+  VectorTools::interpolate(mapping, dof_handler, ElectronInitialValues<dim>(), temp_initial_elec);
+  VectorTools::interpolate(mapping, dof_handler, HoleInitialValues<dim>(), temp_initial_hole);
+
+  temp_initial_elec.compress(VectorOperation::insert);
+  temp_initial_hole.compress(VectorOperation::insert);
+  
+  electron_density = temp_initial_elec;
+  hole_density = temp_initial_hole;
+
+
+}
+//-------------------------------------------------------------------------------------------------------------------------------------------------
+template <int dim>
 void PoissonProblem<dim>:: compute_densities(){   
   
   // in this function we compute the densities of electrons and holes starting from current solution that is the potential
 
-  PETScWrappers::MPI::Vector temp1;
-  PETScWrappers::MPI::Vector temp2;
-  
-	temp1.reinit(locally_owned_dofs, mpi_communicator);
-  temp2.reinit(locally_owned_dofs, mpi_communicator);
-  
-	temp1 = current_solution;
-  temp2 = current_solution;
+  PETScWrappers::MPI::Vector temp_elec; //for elec density
+  PETScWrappers::MPI::Vector temp_hole; //for hole density
+
+  temp_elec.reinit(locally_owned_dofs, mpi_communicator);
+  temp_hole.reinit(locally_owned_dofs, mpi_communicator);
+
+  temp_elec = current_solution;
+  temp_hole = current_solution;
   
 
   //double check = 0;
 
-  for (unsigned int i = temp1.local_range().first; i < temp1.local_range().second; ++i){ 
+  for (unsigned int i = temp_elec.local_range().first; i < temp_elec.local_range().second; ++i){ 
 
-    temp1[i] = ni*std::exp(temp1[i]/V_TH); //electrons
-    temp2[i] = ni*std::exp(-temp2[i]/V_TH);//holes
+    temp_elec[i] = ni*std::exp(temp_elec[i]/V_TH); //electrons
+    temp_hole[i] = ni*std::exp(-temp_hole[i]/V_TH);//holes
     
-    //check = temp1[i]*temp2[i]; deve essere 10^20 --> lo stampa giusto
+    //check = temp_elec[i]*temp_hole[i]; //deve essere 10^20 --> lo stampa giusto
 
     //pcout << "check densità: " <<check << std::endl;
 
   }
   
-  temp1.compress(VectorOperation::insert);
-  temp2.compress(VectorOperation::insert);
+  temp_elec.compress(VectorOperation::insert);
+  temp_hole.compress(VectorOperation::insert);
   
-  electron_density = temp1;
-  hole_density = temp2;
+  electron_density = temp_elec;
+  hole_density = temp_hole;
   
   pcout << " The L2 norm of electorn density is: "<< electron_density.l2_norm()<< std::endl;
   pcout << " The L_INF norm of electron density is: "<< electron_density.linfty_norm()<< std::endl;
@@ -301,6 +327,7 @@ void PoissonProblem<dim>:: compute_densities(){
   pcout << " End of compute densities "<< std::endl<<std::endl;
 
 }
+
 //-----------------------------------------------------------------------------------------------------------------------------------------------
 template <int dim>
 void PoissonProblem<dim>::assemble_laplace_matrix()
@@ -619,37 +646,6 @@ void PoissonProblem<dim>::solve()
   pcout << " End of solve "<< std::endl<<std::endl;
   
 }
-
-//---------------------------------------------------------------------------------------------------------------------------------------------------
-template <int dim>
-void PoissonProblem<dim>::clumping(){
-
-PETScWrappers::MPI::Vector temp;
-
-temp.reinit(locally_owned_dofs, mpi_communicator);
-temp = newton_update;
-
-  for (auto iter = locally_owned_dofs.begin(); iter != locally_owned_dofs.end(); ++iter){ 
-    
-    double result=0;
-
-    if (temp[*iter] < -V_TH) {
-      result = -V_TH;
-    } else if (temp[*iter] > V_TH) {
-      result = V_TH;
-    } else {
-      result = temp[*iter];
-    }
-
-    temp[*iter] = result;
-
-  }
-				
-  temp.compress(VectorOperation::insert);
-  newton_update = temp;
-
-  pcout << " End clumping"<< std::endl;
-}
 //-----------------------------------------------------------------------------------------------------------------------------------------------------
 
 template <int dim>
@@ -661,7 +657,7 @@ void PoissonProblem<dim>::output_results(const unsigned int cycle)
   data_out.add_data_vector(current_solution, "phi");
   data_out.add_data_vector(electron_density, "n");
   data_out.add_data_vector(hole_density, "p");
-  data_out.add_data_vector(newton_update, "d_phi");
+  
 
   Vector<float> subdomain(triangulation.n_active_cells());
   for (unsigned int i = 0; i < subdomain.size(); ++i)
@@ -699,7 +695,7 @@ void PoissonProblem<dim>::run(const unsigned int max_iter, const double toll) //
   assemble_laplace_matrix();
   assemble_mass_matrix();
 
-  double increment_norm = std::numeric_limits<double>::max(); // FIN QUI CORRETTO, VISTO SU PARAVIEW CHE LE BC SONO RISPETTATE E IL POTENZIALE E GIUSTO
+  double increment_norm = std::numeric_limits<double>::max(); 
 
   pcout << " Initial Increment Norm: " << increment_norm << std::endl<<std::endl;
   
@@ -716,15 +712,10 @@ void PoissonProblem<dim>::run(const unsigned int max_iter, const double toll) //
   
     increment_norm = newton_update.l2_norm();
     pcout << " Update Increment: "<<increment_norm<<std::endl<<std::endl;
-    counter ++;
-
-
-    
-    
+    counter ++; 
   
   }
   
-output_results(counter);
 
   if(counter == max_iter){
     pcout<< " ATTENTION! YOU REACH MAX NUMBER OF ITERATIONS!"<<std::endl;
@@ -733,6 +724,7 @@ output_results(counter);
   pcout << "  OUTPUT RESULT "<< std::endl;
 
   
+  output_results(0);
   
   pcout << " -- END NEWTON METHOD -- "<< std::endl;
   
@@ -776,7 +768,7 @@ int main(int argc, char *argv[])
       
 
       PoissonProblem<2> poisson_problem_2d(tria);
-      poisson_problem_2d.run(1500, 1e-18);
+      poisson_problem_2d.run(500, 1e-18);
     
     }
   catch (std::exception &exc)
