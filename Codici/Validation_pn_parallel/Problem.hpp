@@ -123,7 +123,7 @@ class Problem{
     Timer timer;
 
     // TO PARALLELIZE
-    IndexSet local_owned_dofs;       //IndexSet is a class that represents a subset of indices among a larger set. For example, it can be used to denote the set of degrees of freedom that belongs to a particular subdomain.
+    IndexSet locally_owned_dofs;       //IndexSet is a class that represents a subset of indices among a larger set. For example, it can be used to denote the set of degrees of freedom that belongs to a particular subdomain.
 	  IndexSet locally_relevant_dofs; 
     //The presence of two IndexSet objects that denote which sets of degrees of freedom (and associated elements of solution and right hand side vectors)
     //we own on the current processor and which we need (as ghost elements) for the algorithms in this program to work.

@@ -452,6 +452,7 @@ void Problem<dim>::assemble_nonlinear_poisson()
         
       }
 
+  pcout << "problemi prima dei compress" << endl;
   system_matrix_poisson.compress(VectorOperation::add);
   poisson_rhs.compress(VectorOperation::add);
 
