@@ -182,9 +182,9 @@ void PoissonProblem<dim>::setup_system()
   */
   // ZERO CONSTRAINTS FOR NEWTON
   zero_constraints.clear();
-  zero_constraints.reinit(locally_relevant_dofs);
-  VectorTools::interpolate_boundary_values(dof_handler, 1, Functions::ZeroFunction<dim>(), zero_constraints);
-  VectorTools::interpolate_boundary_values(dof_handler, 2, Functions::ZeroFunction<dim>(), zero_constraints);
+  // zero_constraints.reinit(locally_relevant_dofs);
+  // VectorTools::interpolate_boundary_values(dof_handler, 1, Functions::ZeroFunction<dim>(), zero_constraints);
+  // VectorTools::interpolate_boundary_values(dof_handler, 2, Functions::ZeroFunction<dim>(), zero_constraints);
   zero_constraints.close();
 
   //DoFTools::make_hanging_node_constraints(dof_handler, constraints);  // non li abbiamo
@@ -229,11 +229,11 @@ void PoissonProblem<dim>:: initialize_current_solution(){
  
   PETScWrappers::MPI::Vector temp;
 	temp.reinit(locally_owned_dofs, mpi_communicator);   //non ghosted, serve per imporre i valori delle BCs
-	temp = current_solution; //current solution here is zero by default constructor
+	temp = 0; //current solution here is zero by default constructor
 	  
-  std::map<types::global_dof_index, double> boundary_values;
+  //std::map<types::global_dof_index, double> boundary_values;
   
-  VectorTools::interpolate_boundary_values(dof_handler,
+  /*VectorTools::interpolate_boundary_values(dof_handler,
                                            1,
                                            Functions::ConstantFunction<dim>(V_TH*std::log(D/ni)),
                                            boundary_values);
@@ -245,7 +245,11 @@ void PoissonProblem<dim>:: initialize_current_solution(){
   
   for (auto &boundary_value : boundary_values){
     temp(boundary_value.first) = boundary_value.second;
-  }
+  }*/
+  MappingQ1<dim> mapping;
+
+  // VectorTools::interpolate(mapping, dof_handler, PotentialValues<dim>(), temp);
+  VectorTools::interpolate(mapping, dof_handler, Functions::ZeroFunction<dim>(), temp);
   
   temp.compress(VectorOperation::insert); //giusto insert, add non funziona
   current_solution = temp;
@@ -595,9 +599,22 @@ void PoissonProblem<dim>::assemble_system_matrix()
 
   system_rhs.add(- eps_r * eps_0, altro_temp); //SYS_RHS = SYS_RHS - eps*A*phi
 
-  zero_constraints.distribute(system_rhs);
+  // zero_constraints.distribute(system_rhs);
+  // zero_constraints.condense(system_matrix, system_rhs);
 
+  std::map<types::global_dof_index, double> emitter_boundary_values, collector_boundary_values;
+  
+  PETScWrappers::MPI::Vector temp00(locally_owned_dofs, mpi_communicator);
+  temp00=newton_update;
+  VectorTools::interpolate_boundary_values(mapping, dof_handler,1, Functions::ZeroFunction<dim>(), emitter_boundary_values);
+  MatrixTools::apply_boundary_values(emitter_boundary_values, system_matrix, temp00, system_rhs);
+  newton_update=temp00;
 
+  PETScWrappers::MPI::Vector temp000(locally_owned_dofs, mpi_communicator);
+  temp000=newton_update;
+  VectorTools::interpolate_boundary_values(mapping, dof_handler,2, Functions::ZeroFunction<dim>(), collector_boundary_values);
+  MatrixTools::apply_boundary_values(collector_boundary_values, system_matrix, temp000, system_rhs);
+  newton_update=temp000;
 }
 //------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -631,12 +648,12 @@ void PoissonProblem<dim>::solve()
   }
 
   temp.compress(VectorOperation::insert);
-  zero_constraints.distribute(temp);
+  // zero_constraints.distribute(temp);
   newton_update = temp;
   //pcout << " clumping"<< std::endl;
   //clumping();
   temp = current_solution;
-  temp.add(0.8, newton_update);
+  temp.add(1, newton_update);
   //temp += newton_update;   // per adesso noi aggiorniamo cosi: phi_k+1 = phi_k + a * delta_phi. dove a =1, ma è una scelta
   current_solution = temp;
 
@@ -657,6 +674,7 @@ void PoissonProblem<dim>::output_results(const unsigned int cycle)
   data_out.add_data_vector(current_solution, "phi");
   data_out.add_data_vector(electron_density, "n");
   data_out.add_data_vector(hole_density, "p");
+  data_out.add_data_vector(newton_update, "dphi");
   
 
   Vector<float> subdomain(triangulation.n_active_cells());
@@ -690,7 +708,7 @@ void PoissonProblem<dim>::run(const unsigned int max_iter, const double toll) //
   pcout << "  INITIALIZATION POTENTIAL AND DENSITIES "<< std::endl;
   initialize_current_solution();
   compute_densities();
-  
+  output_results(counter);
   pcout << "  BUILD LAPLACE - MASS MATRICES "<< std::endl;
   assemble_laplace_matrix();
   assemble_mass_matrix();
@@ -709,7 +727,7 @@ void PoissonProblem<dim>::run(const unsigned int max_iter, const double toll) //
     pcout << " Solve System"<< std::endl;
     solve(); // dentro c'e anche il clamping
     compute_densities();
-  
+    output_results(counter);
     increment_norm = newton_update.l2_norm();
     pcout << " Update Increment: "<<increment_norm<<std::endl<<std::endl;
     counter ++; 
@@ -724,7 +742,7 @@ void PoissonProblem<dim>::run(const unsigned int max_iter, const double toll) //
   pcout << "  OUTPUT RESULT "<< std::endl;
 
   
-  output_results(0);
+  //output_results(0);
   
   pcout << " -- END NEWTON METHOD -- "<< std::endl;
   
@@ -768,7 +786,7 @@ int main(int argc, char *argv[])
       
 
       PoissonProblem<2> poisson_problem_2d(tria);
-      poisson_problem_2d.run(500, 1e-18);
+      poisson_problem_2d.run(500, 8e-15);
     
     }
   catch (std::exception &exc)

@@ -209,17 +209,16 @@ void PoissonProblem<dim>:: initialize_current_solution(){
   //VectorTools::interpolate(mapping, dof_handler, PotentialValues<dim>(), temp);
 
   std::map<types::global_dof_index, double> boundary_values;
-  /*
-  VectorTools::interpolate_boundary_values(dof_handler,
-                                           1,
-                                           Functions::ConstantFunction<dim>(V_TH*std::log(D/ni)),
-                                           boundary_values);
+  
+  // VectorTools::interpolate_boundary_values(dof_handler,
+  //                                          1,
+  //                                          Functions::ConstantFunction<dim>(V_TH*std::log(D/ni)),
+  //                                          boundary_values);
 
-  VectorTools::interpolate_boundary_values(dof_handler,
-                                           2,
-                                           Functions::ConstantFunction<dim>(-V_TH*std::log(A/ni)),
-                                           boundary_values);
-  */
+  // VectorTools::interpolate_boundary_values(dof_handler,
+  //                                          2,
+  //                                          Functions::ConstantFunction<dim>(-V_TH*std::log(A/ni)),
+  //                                          boundary_values);
   
   VectorTools::interpolate_boundary_values(dof_handler,
                                            1,
